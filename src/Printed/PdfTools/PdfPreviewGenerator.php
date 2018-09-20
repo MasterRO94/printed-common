@@ -113,7 +113,7 @@ class PdfPreviewGenerator
      */
     public function generateFirstPagePreview(File $pdfFile, File $outputFile, array $options)
     {
-        return $this->generagePreviewForPage($pdfFile, $outputFile, 1, $options);
+        return $this->generatePreviewForPage($pdfFile, $outputFile, 1, $options);
     }
 
     /**
@@ -125,7 +125,7 @@ class PdfPreviewGenerator
      * @param array $options
      * @return File
      */
-    public function generagePreviewForPage(File $pdfFile, File $outputFile, $pageNumber, array $options = [])
+    public function generatePreviewForPage(File $pdfFile, File $outputFile, $pageNumber, array $options = [])
     {
         $options = array_merge([
             'previewSizePx' => 200,
