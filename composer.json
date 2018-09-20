@@ -1,5 +1,5 @@
 {
-  "name": "printed/pdf-preview-generator",
+  "name": "printed/pdf-tools",
   "description": "Generates raster previews from PDF, honouring ICC profiles",
   "type": "library",
   "minimum-stability": "stable",
