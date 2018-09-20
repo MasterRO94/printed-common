@@ -11,9 +11,69 @@ use Symfony\Component\Process\Process;
 /**
  * Class PdfPreviewGenerator
  *
- * Requires ghostscript.
+ * Requires Imagemagick and Ghostscript available as pdc-convert and pdc-gs respectively.
  *
- * @maintainer ddera
+ * What's going on here:
+ *
+ * 1. Pdf is rendered to an intermediary png that's big enough to produce nice renders of curves and fonts and that's
+ *    small enough not to take whole day to render.
+ *
+ * 2. The intermediary png is downscaled to the final png size.
+ *
+ * Why:
+ * 1. Rendering directly to the final png size produces lower quality curves and fonts compared to the "render big
+ *    and downscale" process described above. This is because ghostscript doesn't antialias curves, so to work-around
+ *    this, it's given more pixels to render to, which are then collapsed by imagemagick that uses it's downscaling
+ *    algorithms, which eventually produce very nicely antialiased curves and fonts.
+ *
+ * 2. You can't tell ghostscript to render a specific size of raster image. It does however allow you to select
+ *    a rendering resolution (dpi), which by default is 72. I therefore take the media-box size (which is expressed in pt)
+ *    and calculate the dpi that will produce the intermediary image of the size I want.
+ *
+ *    1. Don't be surprised to see small-sized pdfs (e.g. 85x55 business card) to be rendered at ca. 600 dpi. There's
+ *    a good reason the dpi is so ridiculously high in this case. Small-sized pdfs tend to have small text in it (e.g. 8pt),
+ *    which end up very blocky if rendered at the default 72dpi. 600dpi does miracles in that matter, rendering an
+ *    excellent quality fonts.
+ *
+ *    2. Don't be surprised to see large-sized pdfs (e.g. 500x2000 banners) to be rendered at ca. 10dpi. There's
+ *    a good reason why the render is still very good quality despite the ridiculously low dpi: elements like text
+ *    are generally massive in such large-sized pdfs, therefore they don't need big dpi to render nicely. The side-effect
+ *    of rendering at such a low dpi is that the rendering is ridiculously fast (about 1s for a 2m banner is remarkable).
+ *
+ *    3. I decided I don't want to go below 5 dpi, because ghostscript crashes at 1 dpi for some pdfs. Since I'm not
+ *    sure why, I decided to have a safe margin by forcing at least 5 dpi. This means that artwork larger than 10m
+ *    will start to consume server's resources significantly (since the intermediary bitmap will start to grow in size).
+ *    Fyi.
+ *
+ * 3. Despite doing decent job while rendering, I enabled antialiasing for text and graphics in the pdfs. I chose
+ *    the medium quality levels of antialiasing (i.e. 2 out of possible values: 1, 2, 4), because they didn't prove
+ *    massively detrimental to the performance and also give a nice touch in certain circumstances.
+ *
+ * 4. The renders are in png to preserve transparency from the source files.
+ *
+ * Caveats:
+ * 1. Rendering time isn't related to the size of the pdf, but to the complexity of the pdf. It's possible to bring
+ *    pdc severs to their knees by uploading small-sized pdfs (e.g. 85x55, which would be rendered at ca. 600dpi)
+ *    with complex vector graphics. That's, however, why there is a timeout on the cli command, which alleviates
+ *    the problem to some extend. The problem should be monitored, though, since it's perfectly doable for anyone
+ *    to DDOS the previewing by e.g. calling the order wizard file upload endpoint with the small-sized pdf using
+ *    curl in a loop.
+ *
+ * PDFs to test with:
+ * 1. Go to "afp://192.168.11.122/pdc_development/Test upload files/pdf" and test with:
+ *    1. Lee's business card (small-size pdf with small text and curves)
+ *    2. Folded product artwork (the one with a lot of curves)
+ *    3. Multipage and banner pdfs (just to test multipage and large artwork rendering speed)
+ *
+ * Room for improvement:
+ * 1. Upgrade ghostsript to latest for more ICC support.
+ * 2. Define the DefaultCMYK icc profile to be the same that Brian uses in Pitstop (ISO Coated v2 at the time of writing).
+ *    Ghostscript uses SWOP by default.
+ * 3. Introduce eps support.
+ *
+ *
+ * @maintainer ddera (primary)
+ * @maintainer asnowdon (secondary)
  */
 class PdfPreviewGenerator
 {
@@ -53,6 +113,20 @@ class PdfPreviewGenerator
      */
     public function generateFirstPagePreview(File $pdfFile, File $outputFile, array $options)
     {
+        return $this->generagePreviewForPage($pdfFile, $outputFile, 1, $options);
+    }
+
+    /**
+     * @todo Dedupe code.
+     *
+     * @param File $pdfFile
+     * @param File $outputFile
+     * @param int $pageNumber
+     * @param array $options
+     * @return File
+     */
+    public function generagePreviewForPage(File $pdfFile, File $outputFile, $pageNumber, array $options = [])
+    {
         $options = array_merge([
             'previewSizePx' => 200,
             /*
@@ -81,68 +155,9 @@ class PdfPreviewGenerator
             $renderingDpi = 5;
         }
 
-        /*
-         * What's going on here:
-         *
-         * 1. Pdf is rendered to an intermediary png that's big enough to produce nice renders of curves and fonts and that's
-         *    small enough not to take whole day to render.
-         *
-         * 2. The intermediary png is downscaled to the final png size.
-         *
-         * Why:
-         * 1. Rendering directly to the final png size produces lower quality curves and fonts compared to the "render big
-         *    and downscale" process described above. This is because ghostscript doesn't antialias curves, so to work-around
-         *    this, it's given more pixels to render to, which are then collapsed by imagemagick that uses it's downscaling
-         *    algorithms, which eventually produce very nicely antialiased curves and fonts.
-         *
-         * 2. You can't tell ghostscript to render a specific size of raster image. It does however allow you to select
-         *    a rendering resolution (dpi), which by default is 72. I therefore take the media-box size (which is expressed in pt)
-         *    and calculate the dpi that will produce the intermediary image of the size I want.
-         *
-         *    1. Don't be surprised to see small-sized pdfs (e.g. 85x55 business card) to be rendered at ca. 600 dpi. There's
-         *    a good reason the dpi is so ridiculously high in this case. Small-sized pdfs tend to have small text in it (e.g. 8pt),
-         *    which end up very blocky if rendered at the default 72dpi. 600dpi does miracles in that matter, rendering an
-         *    excellent quality fonts.
-         *
-         *    2. Don't be surprised to see large-sized pdfs (e.g. 500x2000 banners) to be rendered at ca. 10dpi. There's
-         *    a good reason why the render is still very good quality despite the ridiculously low dpi: elements like text
-         *    are generally massive in such large-sized pdfs, therefore they don't need big dpi to render nicely. The side-effect
-         *    of rendering at such a low dpi is that the rendering is ridiculously fast (about 1s for a 2m banner is remarkable).
-         *
-         *    3. I decided I don't want to go below 5 dpi, because ghostscript crashes at 1 dpi for some pdfs. Since I'm not
-         *    sure why, I decided to have a safe margin by forcing at least 5 dpi. This means that artwork larger than 10m
-         *    will start to consume server's resources significantly (since the intermediary bitmap will start to grow in size).
-         *    Fyi.
-         *
-         * 3. Despite doing decent job while rendering, I enabled antialiasing for text and graphics in the pdfs. I chose
-         *    the medium quality levels of antialiasing (i.e. 2 out of possible values: 1, 2, 4), because they didn't prove
-         *    massively detrimental to the performance and also give a nice touch in certain circumstances.
-         *
-         * 4. The renders are in png to preserve transparency from the source files.
-         *
-         * Caveats:
-         * 1. Rendering time isn't related to the size of the pdf, but to the complexity of the pdf. It's possible to bring
-         *    pdc severs to their knees by uploading small-sized pdfs (e.g. 85x55, which would be rendered at ca. 600dpi)
-         *    with complex vector graphics. That's, however, why there is a timeout on the cli command, which alleviates
-         *    the problem to some extend. The problem should be monitored, though, since it's perfectly doable for anyone
-         *    to DDOS the previewing by e.g. calling the order wizard file upload endpoint with the small-sized pdf using
-         *    curl in a loop.
-         *
-         * PDFs to test with:
-         * 1. Go to "afp://192.168.11.122/pdc_development/Test upload files/pdf" and test with:
-         *    1. Lee's business card (small-size pdf with small text and curves)
-         *    2. Folded product artwork (the one with a lot of curves)
-         *    3. Multipage and banner pdfs (just to test multipage and large artwork rendering speed)
-         *
-         * Room for improvement:
-         * 1. Upgrade ghostsript to latest for more ICC support.
-         * 2. Define the DefaultCMYK icc profile to be the same that Brian uses in Pitstop (ISO Coated v2 at the time of writing).
-         *    Ghostscript uses SWOP by default.
-         * 3. Introduce eps support.
-         */
         $previewProcess = $this->createPreviewProcessForPage(
             $pdfFile,
-            1,
+            $pageNumber,
             $renderingDpi,
             $outputFile
         );
@@ -162,6 +177,8 @@ class PdfPreviewGenerator
     }
 
     /**
+     * @todo Dedupe code.
+     *
      * @param File $pdfFile
      * @param string $pathToOutput Path to output all files
      * @param array $options
