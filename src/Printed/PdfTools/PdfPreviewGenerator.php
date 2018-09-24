@@ -155,23 +155,7 @@ class PdfPreviewGenerator
             $renderingDpi = 5;
         }
 
-        $previewProcess = $this->createPreviewProcessForPage(
-            $pdfFile,
-            $pageNumber,
-            $renderingDpi,
-            $outputFile
-        );
-
-        $downScaleProcess = $this->createDownscalePreviewProcess(
-            $outputFile,
-            $options['previewSizePx'],
-            $outputFile
-        );
-
-        SymfonyProcessRunner::runSymfonyProcessesWithTimeout([
-            $previewProcess,
-            $downScaleProcess,
-        ], $options['timeout']);
+        $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
 
         return $outputFile;
     }
@@ -182,7 +166,7 @@ class PdfPreviewGenerator
      * @param File $pdfFile
      * @param string $pathToOutput Path to output all files
      * @param array $options
-     * @return mixed
+     * @return File[]
      */
     public function generatePagePreviews(File $pdfFile, $pathToOutput, array $options)
     {
@@ -217,26 +201,10 @@ class PdfPreviewGenerator
 
         $outputFiles = [];
 
-        for ($i = 1; $i <= $pagesCount; $i ++) {
-            $outputFile = new File(sprintf('%s/%d.png', $pathToOutput, $i), false);
+        for ($pageNumber = 1; $pageNumber <= $pagesCount; $pageNumber ++) {
+            $outputFile = new File(sprintf('%s/%d.png', $pathToOutput, $pageNumber), false);
 
-            $previewProcess = $this->createPreviewProcessForPage(
-                $pdfFile,
-                $i,
-                $renderingDpi,
-                $outputFile
-            );
-
-            $downScaleProcess = $this->createDownscalePreviewProcess(
-                $outputFile,
-                $options['previewSizePx'],
-                $outputFile
-            );
-
-            SymfonyProcessRunner::runSymfonyProcessesWithTimeout([
-                $previewProcess,
-                $downScaleProcess,
-            ], $options['timeout']);
+            $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
 
             $outputFiles[] = $outputFile;
         }
@@ -245,13 +213,44 @@ class PdfPreviewGenerator
     }
 
     /**
+     * @param File $pdfFile
+     * @param array $options
+     * @param int $pageNumber
+     * @param int $renderingDpi
+     * @param File $outputFile
+     * @return void
+     */
+    private function createDownscaledPreviewFromPdf(File $pdfFile, array $options, $pageNumber, $renderingDpi, $outputFile)
+    {
+        $previewProcess = $this->buildProcessForHighResPreview(
+            $pdfFile,
+            $pageNumber,
+            $renderingDpi,
+            $outputFile
+        );
+
+        $downScaleProcess = $this->buildProcessForDownscalePreview(
+            $outputFile,
+            $options['previewSizePx'],
+            $outputFile
+        );
+
+        SymfonyProcessRunner::runSymfonyProcessesWithTimeout([
+            $previewProcess,
+            $downScaleProcess,
+        ], $options['timeout']);
+    }
+
+    /**
+     * The provided File must be a PDF.
+     *
      * @param File $inputFile
      * @param int $pageNumber
      * @param int $renderingDpi
      * @param File $outputFile
      * @return Process
      */
-    private function createPreviewProcessForPage(File $inputFile, $pageNumber, $renderingDpi, File $outputFile)
+    private function buildProcessForHighResPreview(File $inputFile, $pageNumber, $renderingDpi, File $outputFile)
     {
         return new Process(sprintf(
             'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -dFirstPage=%2$d -dLastPage=%3$d -dTextAlphaBits=2 -dGraphicsAlphaBits=2 -r%4$d -sOutputFile=%5$s %6$s',
@@ -265,12 +264,14 @@ class PdfPreviewGenerator
     }
 
     /**
+     * This provided File must already be converted to a PNG.
+     *
      * @param File $inputFile
      * @param int $previewSizePx
      * @param File $outputFile
      * @return Process
      */
-    private function createDownscalePreviewProcess(File $inputFile, $previewSizePx, File $outputFile)
+    private function buildProcessForDownscalePreview(File $inputFile, $previewSizePx, File $outputFile)
     {
         return new Process(sprintf(
             'exec %1$s -resize %2$dx%2$d png:%3$s png:%4$s',
