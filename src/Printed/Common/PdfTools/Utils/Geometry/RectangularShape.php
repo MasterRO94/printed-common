@@ -1,10 +1,10 @@
 <?php
 
-namespace Printed\PdfTools\Utils\Geometry;
+namespace Printed\Common\PdfTools\Utils\Geometry;
 
-use Printed\PdfTools\Utils\MeasurementConverter;
-use Printed\PdfTools\Utils\Geometry\Enums\Orientation;
-use Printed\PdfTools\Utils\FuzzyFloatComparator;
+use Printed\Common\PdfTools\Utils\MeasurementConverter;
+use Printed\Common\PdfTools\Utils\Geometry\Enums\Orientation;
+use Printed\Common\PdfTools\Utils\FuzzyFloatComparator;
 
 /**
  * @todo We should use some proper library for it instead (see packagist)

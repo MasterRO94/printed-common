@@ -1,10 +1,10 @@
 <?php
 
-namespace Printed\PdfTools;
+namespace Printed\Common\PdfTools;
 
-use Printed\PdfTools\Cpdf\CpdfPdfInformationExtractor;
-use Printed\PdfTools\Utils\MeasurementConverter;
-use Printed\PdfTools\Utils\SymfonyProcessRunner;
+use Printed\Common\PdfTools\Cpdf\CpdfPdfInformationExtractor;
+use Printed\Common\PdfTools\Utils\MeasurementConverter;
+use Printed\Common\PdfTools\Utils\SymfonyProcessRunner;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Process\Process;
 

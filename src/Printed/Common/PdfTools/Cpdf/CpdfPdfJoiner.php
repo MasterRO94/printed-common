@@ -1,6 +1,6 @@
 <?php
 
-namespace Printed\PdfTools\Cpdf;
+namespace Printed\Common\PdfTools\Cpdf;
 
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Process\Process;

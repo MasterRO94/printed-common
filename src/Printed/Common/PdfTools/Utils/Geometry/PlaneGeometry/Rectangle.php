@@ -1,9 +1,9 @@
 <?php
 
-namespace Printed\PdfTools\Utils\Geometry\PlaneGeometry;
+namespace Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry;
 
-use Printed\PdfTools\Utils\FuzzyFloatComparator;
-use Printed\PdfTools\Utils\MeasurementConverter;
+use Printed\Common\PdfTools\Utils\FuzzyFloatComparator;
+use Printed\Common\PdfTools\Utils\MeasurementConverter;
 
 /**
  * Class Rectangle

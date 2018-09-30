@@ -1,6 +1,6 @@
 <?php
 
-namespace Printed\PdfTools\Utils\Geometry;
+namespace Printed\Common\PdfTools\Utils\Geometry;
 
 
 /**

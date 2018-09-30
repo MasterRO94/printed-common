@@ -1,6 +1,6 @@
 <?php
 
-namespace Printed\PdfTools;
+namespace Printed\Common\PdfTools;
 
 class BinaryPathConfiguration
 {

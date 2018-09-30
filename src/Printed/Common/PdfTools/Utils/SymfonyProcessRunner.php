@@ -1,6 +1,6 @@
 <?php
 
-namespace Printed\PdfTools\Utils;
+namespace Printed\Common\PdfTools\Utils;
 
 use Symfony\Component\Process\Process;
 

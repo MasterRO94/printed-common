@@ -1,8 +1,8 @@
 <?php
 
-namespace Printed\PdfTools\Cpdf\ValueObject;
+namespace Printed\Common\PdfTools\Cpdf\ValueObject;
 
-use Printed\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
+use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
 
 /**
  * Class PdfBoxesInformation

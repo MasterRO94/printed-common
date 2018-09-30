@@ -1,10 +1,10 @@
 <?php
 
-namespace Printed\PdfTools\Cpdf;
+namespace Printed\Common\PdfTools\Cpdf;
 
-use Printed\PdfTools\Cpdf\ValueObject\PdfBoxesInformation;
-use Printed\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
-use Printed\PdfTools\Utils\MeasurementConverter;
+use Printed\Common\PdfTools\Cpdf\ValueObject\PdfBoxesInformation;
+use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
+use Printed\Common\PdfTools\Utils\MeasurementConverter;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Process\Process;
 

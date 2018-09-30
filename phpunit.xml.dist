@@ -3,7 +3,7 @@
 
     <testsuites>
         <testsuite name="Test suite">
-            <directory>src/Printed/PdfTools/Tests</directory>
+            <directory>src/Printed/Common/PdfTools/Tests</directory>
         </testsuite>
     </testsuites>
 

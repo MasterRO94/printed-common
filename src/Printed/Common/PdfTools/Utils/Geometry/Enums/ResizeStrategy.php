@@ -1,6 +1,6 @@
 <?php
 
-namespace Printed\PdfTools\Utils\Geometry\Enums;
+namespace Printed\Common\PdfTools\Utils\Geometry\Enums;
 
 
 class ResizeStrategy
