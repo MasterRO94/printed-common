@@ -43,8 +43,26 @@ class CpdfPdfInformationExtractor
      */
     public function readPdfBoxesInformationOfFirstPageInFile(File $pdfFile)
     {
+        return $this->readPdfBoxesInformationOfPageInFile($pdfFile, 1);
+    }
+
+    /**
+     * @param File $pdfFile
+     * @param int $pageNumber
+     * @return PdfBoxesInformation
+     */
+    public function readPdfBoxesInformationOfPageInFile(File $pdfFile, $pageNumber)
+    {
+        /*
+         * Fyi: In the cpdf command, do not use the "AND" operator when you don't need it. Apparently it makes cpdf
+         * split the pdf in memory, which in turn causes some subtly incorrect pdfs to fail.
+         */
         $cpdfProcess = new Process(
-            sprintf('vendor/bin/cpdf -i %s 1-1 AND -page-info', escapeshellarg($pdfFile->getPathname())),
+            sprintf(
+                'vendor/bin/cpdf -i %1$s %2$s-%2$s -page-info',
+                escapeshellarg($pdfFile->getPathname()),
+                $pageNumber
+            ),
             $this->projectDir
         );
 

@@ -183,26 +183,27 @@ class PdfPreviewGenerator
         }
 
         $pagesCount = $this->cpdfPdfInformationExtractor->getPagesCount($pdfFile);
-        $pdfBoxesInformation = $this->cpdfPdfInformationExtractor->readPdfBoxesInformationOfFirstPageInFile($pdfFile);
-
-        $longestMediaBoxSidePt = $this->measurementConverter->getConversion(
-            $pdfBoxesInformation->getMediaBox()->getLongestSide(),
-            MeasurementConverter::UNIT_PT,
-            MeasurementConverter::UNIT_IN
-        );
-
-        /*
-         * Calculate the dpi that will produce the intermediary bitmap's size. Don't go below 5 dpi.
-         */
-        $renderingDpi = ceil(self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX / $longestMediaBoxSidePt);
-        if ($renderingDpi < 5) {
-            $renderingDpi = 5;
-        }
 
         $outputFiles = [];
 
         for ($pageNumber = 1; $pageNumber <= $pagesCount; $pageNumber ++) {
             $outputFile = new File(sprintf('%s/%d.png', $pathToOutput, $pageNumber), false);
+
+            $pdfPageBoxesInformation = $this->cpdfPdfInformationExtractor->readPdfBoxesInformationOfPageInFile($pdfFile, $pageNumber);
+
+            $longestMediaBoxSidePt = $this->measurementConverter->getConversion(
+                $pdfPageBoxesInformation->getMediaBox()->getLongestSide(),
+                MeasurementConverter::UNIT_PT,
+                MeasurementConverter::UNIT_IN
+            );
+
+            /*
+             * Calculate the dpi that will produce the intermediary bitmap's size. Don't go below 5 dpi.
+             */
+            $renderingDpi = ceil(self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX / $longestMediaBoxSidePt);
+            if ($renderingDpi < 5) {
+                $renderingDpi = 5;
+            }
 
             $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
 
