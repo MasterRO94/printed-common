@@ -3,12 +3,14 @@
 namespace Printed\Common\PdfTools;
 
 use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Translation\TranslatorInterface;
 use Symfony\Component\Validator\ConstraintViolation;
 
 class PdfValidator
 {
+    const ERROR_CODE_PDF_OPEN_TIMEOUT = '90bbc4b4-2959-450b-8ae1-927c49ff6748';
     const ERROR_CODE_PDF_MALFORMED_UNKNOWN_WAY = 'b9d74f7a-9d45-4254-a567-5394c73c28b1';
     const ERROR_CODE_PDF_MALFORMED_OPENS_WITH_WARNINGS = '9c2858ae-5700-44a1-8994-d68e4d282ff5';
     const ERROR_CODE_PDF_WITH_PASSWORD = '8ac7b72a-b383-40dc-9cc8-9ca937a56203';
@@ -31,18 +33,31 @@ class PdfValidator
 
     /**
      * @param File $file
-     * @param array $errorMessages
+     * @param array $options
      * @return ConstraintViolation[]
      */
-    public function validatePdfFileFast(File $file, array $errorMessages = [])
+    public function validatePdfFileFast(File $file, array $options = [])
     {
-        $errorMessages = array_merge([
-            self::ERROR_CODE_PDF_MALFORMED_UNKNOWN_WAY => "Uploaded pdf couldn't be opened, because it's broken in an unknown way.",
-            self::ERROR_CODE_PDF_MALFORMED_OPENS_WITH_WARNINGS => "Uploaded pdf could be opened, but with errors or warnings.",
-            self::ERROR_CODE_PDF_WITH_PASSWORD => "Uploaded pdf couldn't be opened, because it requires a password.",
-            self::ERROR_CODE_PDF_ENCRYPTED_ENCRYPTION_USED => "Uploaded pdf could be opened, but is partially encrypted.",
-            self::ERROR_CODE_PDF_ENCRYPTED_RESTRICTIVE_PERMISSIONS => "Uploaded pdf could be opened, but has restrictive permissions defined.",
-        ], $errorMessages);
+        $options = array_replace_recursive([
+            'messages' => [
+                self::ERROR_CODE_PDF_OPEN_TIMEOUT => "Uploaded pdf's information couldn't be read.",
+                self::ERROR_CODE_PDF_MALFORMED_UNKNOWN_WAY => "Uploaded pdf couldn't be opened, because it's broken in an unknown way.",
+                self::ERROR_CODE_PDF_MALFORMED_OPENS_WITH_WARNINGS => "Uploaded pdf could be opened, but with errors or warnings.",
+                self::ERROR_CODE_PDF_WITH_PASSWORD => "Uploaded pdf couldn't be opened, because it requires a password.",
+                self::ERROR_CODE_PDF_ENCRYPTED_ENCRYPTION_USED => "Uploaded pdf could be opened, but is partially encrypted.",
+                self::ERROR_CODE_PDF_ENCRYPTED_RESTRICTIVE_PERMISSIONS => "Uploaded pdf could be opened, but has restrictive permissions defined.",
+            ],
+
+            /*
+             * Healthy files open instantaneously, however when slightly broken or outright broken pdfs are given, cpdf
+             * tries to recover it before failing hard. This is a useful feature, but unfortunately it takes undefined time
+             * to finish and it can't be disabled. This timeout is there to kill cpdf if it tries to recover a broken file
+             * for too long.
+             */
+            'pdfOpenTimeoutSeconds' => 10,
+        ], $options);
+
+        $errorMessages = $options['messages'];
 
         /*
          * Perform fast checks with `cpdf -info`. This will catch obvious problems like: file
@@ -58,10 +73,19 @@ class PdfValidator
              * Give it 10 seconds tops. This shouldn't take that long. Healthy files should take less than
              * a second to get processed, regardless of their size.
              */
-            10
+            $options['pdfOpenTimeoutSeconds']
         );
 
-        $cpdfProcess->run();
+        try {
+            $cpdfProcess->run();
+        } catch (ProcessTimedOutException $exception) {
+            return [
+                $this->createConstraintViolation(
+                    self::ERROR_CODE_PDF_OPEN_TIMEOUT,
+                    $this->translator->trans($errorMessages[self::ERROR_CODE_PDF_OPEN_TIMEOUT])
+                )
+            ];
+        }
 
         /*
          * 1. Check exit code, that says, that pdf is with password.
@@ -79,16 +103,25 @@ class PdfValidator
             ];
         }
 
+        /*
+         * Check std out gracefully first (ignore runtime exceptions).
+         */
         $validationErrors = $this->checkCpdfStdOutput($cpdfProcess, $errorMessages, [ 'gracefully' => true ]);
         if ($validationErrors) {
             return $validationErrors;
         }
 
+        /*
+         * Check std error output. This will handle the cases that ended up as runtime exceptions above.
+         */
         $validationErrors = $this->checkCpdfExitCodeAndStdError($cpdfProcess, $errorMessages);
         if ($validationErrors) {
             return $validationErrors;
         }
 
+        /*
+         * Check std out again. This time allow runtime exceptions to crash the script.
+         */
         $validationErrors = $this->checkCpdfStdOutput($cpdfProcess, $errorMessages);
         if ($validationErrors) {
             return $validationErrors;

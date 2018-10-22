@@ -13,6 +13,9 @@ use Symfony\Component\Process\Process;
  *
  * Convenience class to regexp the output of `cpdf -info`.
  *
+ * Note: If the pdf file is broken or can't be opened for any reason, you can expect exceptions. Using PdfValidator on
+ * the desired pdf file first is a good idea.
+ *
  * This namespace is a massive copy&paste from PRWE, but adapted to run on php5.
  *
  * @todo Ideally, I should extract this functionality into a pdc common project, so it can be used in any pdc
@@ -29,6 +32,8 @@ class CpdfPdfInformationExtractor
     }
 
     /**
+     * Note: This will throw if the pdf file is broken. Using PdfValidator first is a good idea.
+     *
      * @param File $file
      * @return int
      */
@@ -38,6 +43,8 @@ class CpdfPdfInformationExtractor
     }
 
     /**
+     * Note: This will throw if the pdf file is broken. Using PdfValidator first is a good idea.
+     *
      * @param File $pdfFile
      * @return PdfBoxesInformation
      */
@@ -47,6 +54,8 @@ class CpdfPdfInformationExtractor
     }
 
     /**
+     * Note: This will throw if the pdf file is broken. Using PdfValidator first is a good idea.
+     *
      * @param File $pdfFile
      * @param int $pageNumber
      * @return PdfBoxesInformation
@@ -59,7 +68,7 @@ class CpdfPdfInformationExtractor
          */
         $cpdfProcess = new Process(
             sprintf(
-                'vendor/bin/cpdf -i %1$s %2$s-%2$s -page-info',
+                'exec vendor/bin/cpdf -i %1$s %2$s-%2$s -page-info',
                 escapeshellarg($pdfFile->getPathname()),
                 $pageNumber
             ),
@@ -160,8 +169,15 @@ class CpdfPdfInformationExtractor
     private function produceCpdfInfoOutput($filePath)
     {
         $cpdfProcess = new Process(
-            sprintf('vendor/bin/cpdf -info -i %s', escapeshellarg($filePath)),
-            $this->projectDir
+            sprintf('exec vendor/bin/cpdf -info -i %s', escapeshellarg($filePath)),
+            $this->projectDir,
+            null,
+            null,
+            /*
+             * Healthy files produce the information almost instantaneously. There's no point waiting for the processing
+             * of the broken files for too long.
+             */
+            10
         );
 
         $cpdfProcess->mustRun();
