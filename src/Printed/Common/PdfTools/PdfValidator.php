@@ -5,6 +5,7 @@ namespace Printed\Common\PdfTools;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Component\Validator\ConstraintViolation;
 
 class PdfValidator
 {
@@ -31,9 +32,9 @@ class PdfValidator
     /**
      * @param File $file
      * @param array $errorMessages
-     * @return ValidationError[]
+     * @return ConstraintViolation[]
      */
-    public function validatePdfFileFast(File $file, array $errorMessages = []): array
+    public function validatePdfFileFast(File $file, array $errorMessages = [])
     {
         $errorMessages = array_merge([
             self::ERROR_CODE_PDF_MALFORMED_UNKNOWN_WAY => "Uploaded pdf couldn't be opened, because it's broken in an unknown way.",
@@ -71,7 +72,7 @@ class PdfValidator
 
         if ($cpdfProcess->getExitCode() === 1) {
             return [
-                new ValidationError(
+                $this->createConstraintViolation(
                     self::ERROR_CODE_PDF_WITH_PASSWORD,
                     $this->translator->trans($errorMessages[self::ERROR_CODE_PDF_WITH_PASSWORD])
                 )
@@ -100,9 +101,9 @@ class PdfValidator
      * @param Process $cpdfProcess
      * @param array $errorMessages
      * @param array $options
-     * @return ValidationError[]
+     * @return ConstraintViolation[]
      */
-    private function checkCpdfStdOutput(Process $cpdfProcess, array $errorMessages, array $options = []): array
+    private function checkCpdfStdOutput(Process $cpdfProcess, array $errorMessages, array $options = [])
     {
         $options = array_merge([
             'gracefully' => false,
@@ -134,7 +135,7 @@ class PdfValidator
             return $gracefulReturnOrThrowFn(new \RuntimeException('`Cpdf -info` produced no output'));
         }
 
-        $encryptionLine = $outputLines[0] ?? null;
+        $encryptionLine = isset($outputLines[0]) ? $outputLines[0] : null;
 
         if (!$encryptionLine || strpos($encryptionLine, 'Encryption:') !== 0) {
             return $gracefulReturnOrThrowFn(new \RuntimeException("'`Cpdf -info` didn't produce the encryption line as the first line"));
@@ -143,14 +144,14 @@ class PdfValidator
         preg_match('/^Encryption:(.*)/', $encryptionLine, $regexpMatches);
         if (trim($regexpMatches[1]) !== 'Not encrypted') {
             return [
-                new ValidationError(
+                $this->createConstraintViolation(
                     self::ERROR_CODE_PDF_ENCRYPTED_ENCRYPTION_USED,
                     $this->translator->trans($errorMessages[self::ERROR_CODE_PDF_ENCRYPTED_ENCRYPTION_USED])
                 )
             ];
         }
 
-        $permissionsLine = $outputLines[1] ?? null;
+        $permissionsLine = isset($outputLines[1]) ? $outputLines[1] : null;
 
         if (!$permissionsLine || strpos($permissionsLine, 'Permissions:') !== 0) {
             return $gracefulReturnOrThrowFn(new \RuntimeException("'`Cpdf -info` didn't produce the permissions line as the second line"));
@@ -159,7 +160,7 @@ class PdfValidator
         preg_match('/^Permissions:(.*)/', $permissionsLine, $regexpMatches);
         if (trim($regexpMatches[1]) !== '') {
             return [
-                new ValidationError(
+                $this->createConstraintViolation(
                     self::ERROR_CODE_PDF_ENCRYPTED_RESTRICTIVE_PERMISSIONS,
                     $this->translator->trans($errorMessages[self::ERROR_CODE_PDF_ENCRYPTED_RESTRICTIVE_PERMISSIONS])
                 )
@@ -172,9 +173,9 @@ class PdfValidator
     /**
      * @param Process $cpdfProcess
      * @param array $errorMessages
-     * @return ValidationError[]
+     * @return ConstraintViolation[]
      */
-    private function checkCpdfExitCodeAndStdError(Process $cpdfProcess, array $errorMessages): array
+    private function checkCpdfExitCodeAndStdError(Process $cpdfProcess, array $errorMessages)
     {
         /*
         * The fact, that cpdf uses exit code 1 for invalid password and 2 for indicating, that the
@@ -186,7 +187,7 @@ class PdfValidator
         */
         if ($cpdfProcess->getExitCode() === 2) {
             return [
-                new ValidationError(
+                $this->createConstraintViolation(
                     self::ERROR_CODE_PDF_MALFORMED_UNKNOWN_WAY,
                     $this->translator->trans($errorMessages[self::ERROR_CODE_PDF_MALFORMED_UNKNOWN_WAY])
                 )
@@ -199,7 +200,7 @@ class PdfValidator
 
         if ($cpdfProcess->getErrorOutput()) {
             return [
-                new ValidationError(
+                $this->createConstraintViolation(
                     self::ERROR_CODE_PDF_MALFORMED_OPENS_WITH_WARNINGS,
                     $this->translator->trans($errorMessages[self::ERROR_CODE_PDF_MALFORMED_OPENS_WITH_WARNINGS])
                 )
@@ -207,5 +208,25 @@ class PdfValidator
         }
 
         return [];
+    }
+
+    /**
+     * @param string $errorCode
+     * @param string $message
+     * @param array $errorParameters
+     * @return ConstraintViolation
+     */
+    private function createConstraintViolation($errorCode, $message, array $errorParameters = [])
+    {
+        return new ConstraintViolation(
+            $message,
+            $message,
+            $errorParameters,
+            null,
+            null,
+            null,
+            null,
+            $errorCode
+        );
     }
 }
