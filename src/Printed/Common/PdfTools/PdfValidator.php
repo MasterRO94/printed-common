@@ -18,15 +18,15 @@ class PdfValidator
     /** @var TranslatorInterface */
     private $translator;
 
-    /** @var string */
-    private $projectDir;
+    /** @var string e.g. /var/www/my-php-project/vendor/bin */
+    private $vendorBinDir;
 
     public function __construct(
         TranslatorInterface $translator,
-        $projectDir
+        $vendorBinDir
     ) {
         $this->translator = $translator;
-        $this->projectDir = $projectDir;
+        $this->vendorBinDir = $vendorBinDir;
     }
 
     /**
@@ -50,8 +50,8 @@ class PdfValidator
          */
 
         $cpdfProcess = new Process(
-            sprintf('bin/cpdf -info -i %s', escapeshellarg($file->getPathname())),
-            $this->projectDir,
+            sprintf('cpdf -info -i %s', escapeshellarg($file->getPathname())),
+            $this->vendorBinDir,
             null,
             null,
             /*
