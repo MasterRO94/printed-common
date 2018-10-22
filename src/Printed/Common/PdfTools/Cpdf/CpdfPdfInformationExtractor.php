@@ -176,6 +176,8 @@ class CpdfPdfInformationExtractor
             /*
              * Healthy files produce the information almost instantaneously. There's no point waiting for the processing
              * of the broken files for too long.
+             *
+             * This is a good candidate for an option, however I didn't need it at the time of writing this.
              */
             10
         );

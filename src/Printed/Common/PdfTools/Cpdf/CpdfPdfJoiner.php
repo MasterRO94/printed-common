@@ -8,14 +8,14 @@ use Symfony\Component\Process\Process;
 class CpdfPdfJoiner
 {
     /** @var string */
-    private $projectDir;
+    private $vendorBinDir;
 
     /**
-     * @param string $projectDir
+     * @param string $vendorBinDir
      */
-    private function __construct($projectDir)
+    public function __construct($vendorBinDir)
     {
-        $this->projectDir = $projectDir;
+        $this->vendorBinDir = $vendorBinDir;
     }
 
     /**
@@ -34,12 +34,12 @@ class CpdfPdfJoiner
         }
 
         $command = sprintf(
-            'vendor/bin/cpdf -i %s -o %s',
+            'cpdf -i %s -o %s',
             implode(' -i ', $inputFiles),
             $outputFile->getPathname()
         );
 
-        $cpdfProcess = new Process($command, $this->projectDir);
+        $cpdfProcess = new Process($command, $this->vendorBinDir);
         $cpdfProcess->mustRun();
 
         if ($cpdfProcess->getErrorOutput()) {
