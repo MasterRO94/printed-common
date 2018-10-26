@@ -34,7 +34,7 @@ class CpdfPdfJoiner
         }
 
         $command = sprintf(
-            'cpdf -i %s -o %s',
+            './cpdf -i %s -o %s',
             implode(' -i ', $inputFiles),
             $outputFile->getPathname()
         );

@@ -65,7 +65,7 @@ class PdfValidator
          */
 
         $cpdfProcess = new Process(
-            sprintf('cpdf -info -i %s', escapeshellarg($file->getPathname())),
+            sprintf('exec ./cpdf -info -i %s', escapeshellarg($file->getPathname())),
             $this->vendorBinDir,
             null,
             null,
