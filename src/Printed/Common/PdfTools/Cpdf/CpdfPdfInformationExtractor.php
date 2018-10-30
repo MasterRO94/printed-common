@@ -3,9 +3,11 @@
 namespace Printed\Common\PdfTools\Cpdf;
 
 use Printed\Common\PdfTools\Cpdf\ValueObject\PdfBoxesInformation;
+use Printed\Common\PdfTools\Cpdf\ValueObject\PdfInformation;
 use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
 use Printed\Common\PdfTools\Utils\MeasurementConverter;
 use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -13,13 +15,7 @@ use Symfony\Component\Process\Process;
  *
  * Convenience class to regexp the output of `cpdf -info`.
  *
- * Note: If the pdf file is broken or can't be opened for any reason, you can expect exceptions. Using PdfValidator on
- * the desired pdf file first is a good idea.
- *
  * This namespace is a massive copy&paste from PRWE, but adapted to run on php5.
- *
- * @todo Ideally, I should extract this functionality into a pdc common project, so it can be used in any pdc
- * project. The problem is with supporting php5 and php7 at the same time.
  */
 class CpdfPdfInformationExtractor
 {
@@ -32,14 +28,169 @@ class CpdfPdfInformationExtractor
     }
 
     /**
-     * Note: This will throw if the pdf file is broken. Using PdfValidator first is a good idea.
+     * A graceful way to get pdf file information and to pass it around your own code (instead of constructing it
+     * over and over again).
+     *
+     * DANGER: this method still throws exceptions on massive bs, so if you want to be completely safe, you need to
+     * catch those exceptions yourself and think of what to do with them (e.g. log and assume 0 pdf pages)
+     *
+     * @param File $file
+     * @param array $options
+     * @return PdfInformation
+     */
+    public function readPdfInformation($file, array $options = [])
+    {
+        $options = array_merge([
+            'pdfOpenTimeoutSeconds' => 10,
+        ], $options);
+
+        $cpdfProcess = new Process(
+            sprintf('exec vendor/bin/cpdf -info -i %s', escapeshellarg($file->getPathname())),
+            $this->projectDir,
+            null,
+            null,
+            $options['pdfOpenTimeoutSeconds']
+        );
+
+        try {
+            $cpdfProcess->run();
+        } catch (ProcessTimedOutException $exception) {
+            return new PdfInformation(
+                $file,
+                $cpdfProcess,
+                [
+                    'openOperationTimeout' => true,
+                ]
+            );
+        }
+
+        /*
+         * Check exit codes
+         */
+        switch ($cpdfProcess->getExitCode()) {
+            case 0:
+                break;
+
+            case 1:
+                return new PdfInformation(
+                    $file,
+                    $cpdfProcess,
+                    [
+                        'isPasswordSecured' => true,
+                    ]
+                );
+
+            case 2:
+                return new PdfInformation(
+                    $file,
+                    $cpdfProcess,
+                    [
+                        'brokenPdfFile' => true,
+                    ]
+                );
+
+            default:
+                throw new \RuntimeException("Cpdf unexpectedly finished with exit code other than 0, 1 or 2 for file: `{$file->getPathname()}`");
+        }
+
+        /*
+         * Gather pdf file information. Note that due to the fact that pdfs can fail in unlimited number of ways, not
+         * all the information is available all the time.
+         */
+
+        /*
+         * Opens with warnings?
+         */
+        $pdfPageOpensWithWarnings = (bool) $cpdfProcess->getErrorOutput();
+
+        /*
+         * I expect this output:
+         *
+         *  Encryption: 128bit AES, Metadata encrypted
+         *  Permissions: No assemble, No copy, No edit
+         *  Linearized: true
+         *  Version: 1.7
+         *  Pages: 1
+         *  (more lines ...)
+         */
+        $processOutputLines = explode(PHP_EOL, $cpdfProcess->getOutput());
+
+        /*
+         * Encryption line
+         */
+        $isPdfFileEncrypted = null;
+
+        if (($encryptionLine = isset($processOutputLines[0]) ? $processOutputLines[0] : null)) {
+            /*
+             * Assert the line content
+             */
+            if (0 !== strpos($encryptionLine, 'Encryption:')) {
+                throw new \RuntimeException("'`Cpdf -info` didn't produce the encryption line as the first line");
+            }
+
+            preg_match('/^Encryption:(.*)/', $encryptionLine, $regexpMatches);
+
+            $isPdfFileEncrypted = trim($regexpMatches[1]) !== 'Not encrypted';
+        }
+
+        /*
+         * Permissions line
+         */
+        $isPdfFileWithRestrictedPermissions = null;
+
+        if (($permissionsLine = isset($processOutputLines[1]) ? $processOutputLines[1] : null)) {
+            /*
+             * Assert the line content
+             */
+            if (0 !== strpos($permissionsLine, 'Permissions:')) {
+                throw new \RuntimeException("'`Cpdf -info` didn't produce the permissions line as the second line");
+            }
+
+            preg_match('/^Permissions:(.*)/', $permissionsLine, $regexpMatches);
+
+            $isPdfFileWithRestrictedPermissions = trim($regexpMatches[1]) !== '';
+        }
+
+        /*
+         * Pages line
+         */
+        $pdfPagesCount = null;
+        if (($pagesLine = isset($processOutputLines[4]) ? $processOutputLines[4] : null)) {
+            /*
+             * Assert the line content
+             */
+            if (0 !== strpos($pagesLine, 'Pages:')) {
+                throw new \RuntimeException("'`Cpdf -info` didn't produce the pages line as the fifth line");
+            }
+
+            preg_match('/^Pages:(.*)/', $pagesLine, $regexpMatches);
+
+            $pdfPagesCount = (int) trim($regexpMatches[1]);
+        }
+
+        return new PdfInformation(
+            $file,
+            $cpdfProcess,
+            [],
+            [
+                'opensWithWarnings' => $pdfPageOpensWithWarnings,
+                'encrypted' => $isPdfFileEncrypted,
+                'withRestrictivePermissions' => $isPdfFileWithRestrictedPermissions,
+                'pagesCount' => $pdfPagesCount,
+            ]
+        );
+    }
+
+    /**
+     * Note: This will throw if the pdf file is broken. Using PdfValidator or ::readPdfInformation() might be an interesting
+     * option for you instead.
      *
      * @param File $file
      * @return int
      */
     public function getPagesCount(File $file)
     {
-        return (int) $this->extractCpdfInfoLine($file, 4, 'Pages:');
+        return $this->readPdfInformation($file)->getPagesCountOrThrow();
     }
 
     /**
@@ -135,60 +286,6 @@ class CpdfPdfInformationExtractor
             $mediaBox,
             $trimBox
         );
-    }
-
-    /**
-     * @param File $file
-     * @param int $outputLineIndex
-     * @param string $lineBeginning
-     * @return string
-     */
-    private function extractCpdfInfoLine(File $file, $outputLineIndex, $lineBeginning)
-    {
-        $outputLines = explode(PHP_EOL, $this->produceCpdfInfoOutput($file->getPathname()));
-
-        if (!array_key_exists($outputLineIndex, $outputLines)) {
-            throw new \RuntimeException("Couldn't extract {$outputLineIndex} line from `cpdf -info` output");
-        }
-
-        $outputLine = $outputLines[$outputLineIndex];
-
-        if (strpos($outputLine, $lineBeginning) !== 0) {
-            throw new \RuntimeException("'`Cpdf -info` didn't produce the `{$lineBeginning}` line as the `{$outputLineIndex}` line");
-        }
-
-        preg_match("/^{$lineBeginning}(.*)/", $outputLine, $regexpMatches);
-
-        return trim($regexpMatches[1]);
-    }
-
-    /**
-     * @param string $filePath
-     * @return string
-     */
-    private function produceCpdfInfoOutput($filePath)
-    {
-        $cpdfProcess = new Process(
-            sprintf('exec vendor/bin/cpdf -info -i %s', escapeshellarg($filePath)),
-            $this->projectDir,
-            null,
-            null,
-            /*
-             * Healthy files produce the information almost instantaneously. There's no point waiting for the processing
-             * of the broken files for too long.
-             *
-             * This is a good candidate for an option, however I didn't need it at the time of writing this.
-             */
-            10
-        );
-
-        $cpdfProcess->mustRun();
-
-        if ($cpdfProcess->getErrorOutput()) {
-            throw new \RuntimeException("`cpdf -info` produced error output: {$cpdfProcess->getErrorOutput()}. Assuming file is unusable.");
-        }
-
-        return $cpdfProcess->getOutput();
     }
 
     /**
