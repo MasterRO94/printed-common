@@ -2,6 +2,7 @@
 
 namespace Printed\Common\ImageTools;
 
+use Printed\Common\ImageTools\ValueObject\ImageFileGeometry;
 use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
 use Printed\Common\PdfTools\Utils\MeasurementConverter;
 use Symfony\Component\HttpFoundation\File\File;
@@ -45,8 +46,8 @@ class ImageFileGeometryExtractor
              *
              * You need to return an instance of RectangleInterface from this callable.
              */
-            'rectangleFactoryFn' => function ($x, $y, $width, $height) {
-                return new Rectangle($x, $y, $width, $height);
+            'rectangleFactoryFn' => function ($x, $y, $width, $height, $units = MeasurementConverter::UNIT_NO_UNIT) {
+                return new Rectangle($x, $y, $width, $height, $units);
             },
         ], $options);
 
@@ -68,8 +69,10 @@ class ImageFileGeometryExtractor
              * 2. -format "%wx%h %xx%y %U"
              *
              * Both are the same, but only the second form runs instantaneously
+             *
+             * DANGER: Do not use sprintf here to avoid having to escape the % signs in the identify command
              */
-            sprintf('exec pdc-identify -format "%w\n%h\n%x\n%y\n%U" %s', escapeshellarg($file->getPathname())),
+            'exec ' . $this->options['imageMagickIdentifyCommand'] . ' -format "%w\n%h\n%x\n%y\n%U" ' . escapeshellarg($file->getPathname()),
             null,
             null,
             null,
@@ -121,7 +124,7 @@ class ImageFileGeometryExtractor
             $resolutionUnit
         );
 
-        return ImageFileGeometry(
+        return new ImageFileGeometry(
             $this->options['rectangleFactoryFn'](0, 0, $widthPx, $heightPx),
             $widthMm === null ? null : $this->options['rectangleFactoryFn'](0, 0, $widthMm, $heightMm)
         );

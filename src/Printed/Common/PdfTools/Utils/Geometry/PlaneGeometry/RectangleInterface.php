@@ -11,10 +11,40 @@ interface RectangleInterface
     /**
      * @return int
      */
+    public function getX();
+
+    /**
+     * @return int
+     */
+    public function getY();
+
+    /**
+     * @return int
+     */
     public function getWidth();
 
     /**
      * @return int
      */
     public function getHeight();
+
+    /**
+     * @return string One of MeasurementConverter::UNIT_*
+     */
+    public function getUnits();
+
+    /**
+     * @return int
+     */
+    public function getRightEdge();
+
+    /**
+     * @return int
+     */
+    public function getBottomEdge();
+
+    /**
+     * @return int
+     */
+    public function getLongestSide();
 }

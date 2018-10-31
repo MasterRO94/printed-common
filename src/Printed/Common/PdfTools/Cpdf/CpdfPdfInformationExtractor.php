@@ -5,6 +5,7 @@ namespace Printed\Common\PdfTools\Cpdf;
 use Printed\Common\PdfTools\Cpdf\ValueObject\PdfBoxesInformation;
 use Printed\Common\PdfTools\Cpdf\ValueObject\PdfInformation;
 use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
+use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\RectangleInterface;
 use Printed\Common\PdfTools\Utils\MeasurementConverter;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
@@ -22,9 +23,25 @@ class CpdfPdfInformationExtractor
     /** @var string */
     private $projectDir;
 
-    public function __construct($projectDir)
+    /** @var array */
+    private $options;
+
+    public function __construct($projectDir, array $options = [])
     {
+        $options = array_merge([
+            /*
+             * Useful to override if you have a Rectangle class in your own codebase and you want to use it instead of this
+             * package's one.
+             *
+             * You need to return an instance of RectangleInterface from this callable.
+             */
+            'rectangleFactoryFn' => function ($x, $y, $width, $height, $units = MeasurementConverter::UNIT_NO_UNIT) {
+                return new Rectangle($x, $y, $width, $height, $units);
+            },
+        ], $options);
+
         $this->projectDir = $projectDir;
+        $this->options = $options;
     }
 
     /**
@@ -247,6 +264,10 @@ class CpdfPdfInformationExtractor
         $cpdfPageInfoOutput = $this->convertCpdfOutputToKeyValueHashMap($cpdfProcess->getOutput());
         $cpdfPageInfoOutputJsonEncoded = json_encode($cpdfPageInfoOutput);
 
+        /**
+         * @param string $boxName
+         * @return RectangleInterface
+         */
         $createPdfBoxRectangleFn = function ($boxName) use ($cpdfPageInfoOutput, $cpdfPageInfoOutputJsonEncoded) {
             if (!isset($cpdfPageInfoOutput[$boxName])) {
                 throw new \RuntimeException("Couldn't retrieve `{$boxName}` pdf box from cpdf output: `{$cpdfPageInfoOutputJsonEncoded}`.");
@@ -266,7 +287,7 @@ class CpdfPdfInformationExtractor
                 return (float) $coordinate;
             }, $pdfBoxCoordinates);
 
-            return new Rectangle(
+            return $this->options['rectangleFactoryFn'](
                 $pdfBoxCoordinates[0],
                 $pdfBoxCoordinates[1],
                 $pdfBoxCoordinates[2] - $pdfBoxCoordinates[0],
@@ -281,6 +302,20 @@ class CpdfPdfInformationExtractor
         if (!$mediaBox) {
             throw new \RuntimeException("Cpdf couldn't read a pdf's MediaBox. Cpdf output: {$cpdfPageInfoOutputJsonEncoded}");
         }
+
+        /*
+         * In some pdf (most notably, Lee's business card test pdf) the mediabox offsets (i.e. x and y) aren't 0. This is
+         * an error, but apparently the whole world is handling it and so need I.
+         *
+         * If the offsets of the media box aren't 0, then I need to move the trimbox by the broken media box's offset.
+         */
+        $trimBox = $this->options['rectangleFactoryFn'](
+            $trimBox->getX() + $mediaBox->getX(),
+            $trimBox->getY() + $mediaBox->getY(),
+            $trimBox->getWidth(),
+            $trimBox->getHeight(),
+            $trimBox->getUnits()
+        );
 
         return new PdfBoxesInformation(
             $mediaBox,

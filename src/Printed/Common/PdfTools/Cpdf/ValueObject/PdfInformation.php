@@ -3,6 +3,7 @@
 namespace Printed\Common\PdfTools\Cpdf\ValueObject;
 
 use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
 class PdfInformation
@@ -95,7 +96,14 @@ class PdfInformation
         $pagesCount = $this->getPagesCount();
 
         if (null === $pagesCount) {
-            throw new \RuntimeException("Couldn't read pdf file pages count. Pdf file: `{$this->file->getPathname()}`");
+            $errorMessage = sprintf(
+                "Couldn't read pdf file pages count. Pdf file: `%s`. Opening errors: `%s`. Error details: `%s`",
+                $this->file->getPathname(),
+                json_encode($this->openingErrors),
+                $this->finishedCpdfInfoProcess->isSuccessful() ? 'none' : (new ProcessFailedException($this->finishedCpdfInfoProcess))->getMessage()
+            );
+
+            throw new \RuntimeException($errorMessage);
         }
 
         return $pagesCount;

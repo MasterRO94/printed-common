@@ -2,7 +2,7 @@
 
 namespace Printed\Common\PdfTools\Cpdf\ValueObject;
 
-use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
+use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\RectangleInterface;
 
 /**
  * Class PdfBoxesInformation
@@ -11,20 +11,20 @@ use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
  */
 class PdfBoxesInformation
 {
-    /** @var Rectangle */
+    /** @var RectangleInterface */
     private $mediaBox;
 
-    /** @var Rectangle|null */
+    /** @var RectangleInterface|null */
     private $trimBox;
 
-    public function __construct(Rectangle $mediaBox, Rectangle $trimBox = null)
+    public function __construct(RectangleInterface $mediaBox, RectangleInterface $trimBox = null)
     {
         $this->mediaBox = $mediaBox;
         $this->trimBox = $trimBox;
     }
 
     /**
-     * @return Rectangle
+     * @return RectangleInterface
      */
     public function getMediaBox()
     {
@@ -32,7 +32,7 @@ class PdfBoxesInformation
     }
 
     /**
-     * @return Rectangle|null
+     * @return RectangleInterface|null
      */
     public function getTrimBox()
     {
