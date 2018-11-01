@@ -243,11 +243,12 @@ class CpdfPdfInformationExtractor
             $this->projectDir
         );
 
+        /*
+         * Note that this will crash on hopeless errors but not on cpdf warnings, which is desired. Cpdf will try to
+         * recover from warnings. When it recovers, the exit code is 0, allowing the script to proceed. I still note that
+         * there were opening warnings in the return value of this method later on.
+         */
         $cpdfProcess->mustRun();
-
-        if ($cpdfProcess->getErrorOutput()) {
-            throw new \RuntimeException("`cpdf -page-info` produced error output: {$cpdfProcess->getErrorOutput()}. Assuming file is unusable.");
-        }
 
         /*
          * The output looks like this:
@@ -315,7 +316,7 @@ class CpdfPdfInformationExtractor
         $trimBox = $createPdfBoxRectangleFn('TrimBox');
 
         if (!$mediaBox) {
-            throw new \RuntimeException("Cpdf couldn't read a pdf's MediaBox. Cpdf output: {$cpdfPageInfoOutputJsonEncoded}");
+            throw new \RuntimeException("Cpdf couldn't read a pdf's MediaBox from `{$pdfFile->getPathname()}`. Cpdf output: `{$cpdfPageInfoOutputJsonEncoded}`, error output: `{$cpdfProcess->getErrorOutput()}`");
         }
 
         /*
@@ -336,7 +337,8 @@ class CpdfPdfInformationExtractor
 
         return new PdfBoxesInformation(
             $mediaBox,
-            $trimBox
+            $trimBox,
+            $cpdfProcess->getErrorOutput()
         );
     }
 

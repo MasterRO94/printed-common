@@ -7,24 +7,33 @@ use Symfony\Component\HttpFoundation\File\File;
 
 class PreviewFileAndPagePdfBoxesInformation
 {
-    /** @var File */
-    private $previewFile;
-
     /** @var PdfBoxesInformation */
     private $pdfBoxesInformation;
 
-    public function __construct(File $previewFile, PdfBoxesInformation $pdfBoxesInformation)
-    {
-        $this->previewFile = $previewFile;
+    /** @var File|null */
+    private $previewFile;
+
+    /** @var \Exception|null */
+    private $previewProcessException;
+
+    private function __construct(
+        PdfBoxesInformation $pdfBoxesInformation,
+        File $previewFile = null,
+        \Exception $previewProcessException = null
+    ) {
         $this->pdfBoxesInformation = $pdfBoxesInformation;
+        $this->previewFile = $previewFile;
+        $this->previewProcessException = $previewProcessException;
     }
 
-    /**
-     * @return File
-     */
-    public function getPreviewFile()
+    static function createForSuccessfulPreview(PdfBoxesInformation $pdfBoxesInformation, File $previewFile)
     {
-        return $this->previewFile;
+        return new self($pdfBoxesInformation, $previewFile);
+    }
+
+    static function createForFailedPreview(PdfBoxesInformation $pdfBoxesInformation, \Exception $previewProcessException)
+    {
+        return new self($pdfBoxesInformation, null, $previewProcessException);
     }
 
     /**
@@ -33,5 +42,21 @@ class PreviewFileAndPagePdfBoxesInformation
     public function getPdfBoxesInformation()
     {
         return $this->pdfBoxesInformation;
+    }
+
+    /**
+     * @return File|null
+     */
+    public function getPreviewFile()
+    {
+        return $this->previewFile;
+    }
+
+    /**
+     * @return \Exception|null
+     */
+    public function getPreviewProcessException()
+    {
+        return $this->previewProcessException;
     }
 }

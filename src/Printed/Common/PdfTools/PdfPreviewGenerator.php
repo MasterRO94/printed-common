@@ -123,7 +123,8 @@ class PdfPreviewGenerator
      * @param File $outputFile
      * @param int $pageNumber
      * @param array $options
-     * @return File|PreviewFileAndPagePdfBoxesInformation See $options
+     * @return File|PreviewFileAndPagePdfBoxesInformation|null See $options. Fyi, this may be null only if you use a specific
+     *  option. Otherwise, it either succeeds or crashes.
      */
     public function generatePreviewForPage(File $pdfFile, File $outputFile, $pageNumber, array $options = [])
     {
@@ -140,6 +141,23 @@ class PdfPreviewGenerator
              * from the file regardless of what this option says, as the information is needed for previewing.
              */
             'returnPreviewsWithPagePdfBoxesInformation' => false,
+
+            /*
+             * If "false", ask yourself how you want to handle errors then. Setting this to "false" makes sense only, when
+             * you set "returnPreviewsWithPagePdfBoxesInformation" to true, in which case the exceptions will be returned
+             * to you for inspection. Otherwise, you just get no preview files with no clue what went wrong.
+             *
+             * DANGER: The code will still crash if the file can't even be opened (malformed file or with password). I
+             * recommend you check the "hopeless errors" case yourself before you call this method.
+             */
+            'crashOnPreviewingErrors' => true,
+
+            /*
+             * Set to "false" if you want to short-circuit previewing if the file appears to open with warnings (cpdf-wise).
+             * It's great in conjunction with "returnPreviewsWithPagePdfBoxesInformation", where you can still get the
+             * pages' geometry back despite the warnings.
+             */
+            'attemptPreviewingDespitePdfWarnings' => true,
         ], $options);
 
         if (self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX < $options['previewSizePx']) {
@@ -147,6 +165,24 @@ class PdfPreviewGenerator
         }
 
         $pdfBoxesInformation = $this->cpdfPdfInformationExtractor->readPdfBoxesInformationOfPageInFile($pdfFile, $pageNumber);
+
+        /*
+         * Warnings during reading box information
+         */
+        if (
+            !$options['attemptPreviewingDespitePdfWarnings']
+            && $pdfBoxesInformation->getCpdfErrorOutput()
+        ) {
+            $runtimeException = new \RuntimeException("Previewing skipped due to warnings during page information retrieval. Warnings output: `{$pdfBoxesInformation->getCpdfErrorOutput()}`");
+
+            if ($options['crashOnPreviewingErrors']) {
+                throw $runtimeException;
+            }
+
+            return $options['returnPreviewsWithPagePdfBoxesInformation']
+                ? PreviewFileAndPagePdfBoxesInformation::createForFailedPreview($pdfBoxesInformation, $runtimeException)
+                : null;
+        }
 
         $longestMediaBoxSidePt = $this->measurementConverter->getConversion(
             $pdfBoxesInformation->getMediaBox()->getLongestSide(),
@@ -162,11 +198,34 @@ class PdfPreviewGenerator
             $renderingDpi = 5;
         }
 
-        $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
+        /*
+         * Preview
+         */
+        $previewProcessException = null;
 
-        return $options['returnPreviewsWithPagePdfBoxesInformation']
-            ? new PreviewFileAndPagePdfBoxesInformation($outputFile, $pdfBoxesInformation)
-            : $outputFile;
+        try {
+            $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
+        } catch (\Exception $exception) {
+            /*
+             * Crashes are handled outside of try-catch.
+             */
+            $previewProcessException = $exception;
+        }
+
+        /*
+         * Handle optional preview crash
+         */
+        if ($options['crashOnPreviewingErrors']) {
+            throw $previewProcessException;
+        }
+
+        if ($options['returnPreviewsWithPagePdfBoxesInformation']) {
+            return $previewProcessException
+                ? PreviewFileAndPagePdfBoxesInformation::createForFailedPreview($pdfBoxesInformation, $previewProcessException)
+                : PreviewFileAndPagePdfBoxesInformation::createForSuccessfulPreview($pdfBoxesInformation, $outputFile);
+        }
+
+        return $previewProcessException ? null : $outputFile;
     }
 
     /**
@@ -205,10 +264,19 @@ class PdfPreviewGenerator
             },
 
             /*
-             * To get pages information as well as the previews in one go. Note that the pages information are retrieved
-             * from the file regardless of what this option says, as the information is needed for previewing.
+             * See the option for ::generatePreviewForPage()
              */
             'returnPreviewsWithPagePdfBoxesInformation' => false,
+
+            /*
+             * See the option for ::generatePreviewForPage()
+             */
+            'crashOnPreviewingErrors' => true,
+
+            /*
+             * See the option for ::generatePreviewForPage()
+             */
+            'attemptPreviewingDespitePdfWarnings' => true,
 
             /**
              * @var PdfInformation|null If you have an instance of pdf information for the supplied file already, you
@@ -260,6 +328,9 @@ class PdfPreviewGenerator
         /** @var File[]|PreviewFileAndPagePdfBoxesInformation[] $results */
         $results = [];
 
+        /*
+         * Preview
+         */
         for ($pageNumber = 1; $pageNumber <= $maxPageNumberToPreview; $pageNumber ++) {
             /*
              * Previewing progress
@@ -279,6 +350,8 @@ class PdfPreviewGenerator
             $result = $this->generatePreviewForPage($pdfFile, $outputFile, $pageNumber, [
                 'previewSizePx' => $options['previewSizePx'],
                 'returnPreviewsWithPagePdfBoxesInformation' => $options['returnPreviewsWithPagePdfBoxesInformation'],
+                'crashOnPreviewingErrors' => $options['crashOnPreviewingErrors'],
+                'attemptPreviewingDespitePdfWarnings' => $options['attemptPreviewingDespitePdfWarnings'],
                 'timeout' => $previewingTimeout,
             ]);
 
