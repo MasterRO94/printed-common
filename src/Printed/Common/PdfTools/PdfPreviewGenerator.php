@@ -317,6 +317,9 @@ class PdfPreviewGenerator
                 /*
                  * "Cleverly" don't allow the remaining time to evaluate less than 1. I rely on Symfony process to throw
                  * the timeout exception when the selected process timeout is 1 second.
+                 *
+                 * Note: this is important this works this way, so 'crashOnPreviewingErrors':false still not crashes
+                 * regardless of the fact that the time limit was exceeded.
                  */
                 if ($remainingPreviewingTimeSeconds < 1) {
                     $remainingPreviewingTimeSeconds = 1;
