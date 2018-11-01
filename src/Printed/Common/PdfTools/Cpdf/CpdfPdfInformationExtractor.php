@@ -287,6 +287,21 @@ class CpdfPdfInformationExtractor
                 return (float) $coordinate;
             }, $pdfBoxCoordinates);
 
+            /*
+             * Retrieve rotation. The page coords are before rotation and not after it. I need to rotate the coords myself
+             * here.
+             */
+            $pdfPageRotation = (int) (isset($cpdfPageInfoOutput['Rotation']) ? $cpdfPageInfoOutput['Rotation'] : 0);
+
+            /*
+             * On 90 and 270 deg rotation, swap x with y and width with height. It sounds wrong in the case of x and y,
+             * but trust me - it works.
+             */
+            if (in_array($pdfPageRotation, [90, 270])) {
+                list($pdfBoxCoordinates[0], $pdfBoxCoordinates[1]) = [$pdfBoxCoordinates[1], $pdfBoxCoordinates[0]];
+                list($pdfBoxCoordinates[2], $pdfBoxCoordinates[3]) = [$pdfBoxCoordinates[3], $pdfBoxCoordinates[2]];
+            }
+
             return $this->options['rectangleFactoryFn'](
                 $pdfBoxCoordinates[0],
                 $pdfBoxCoordinates[1],
@@ -309,13 +324,15 @@ class CpdfPdfInformationExtractor
          *
          * If the offsets of the media box aren't 0, then I need to move the trimbox by the broken media box's offset.
          */
-        $trimBox = $this->options['rectangleFactoryFn'](
-            $trimBox->getX() + $mediaBox->getX(),
-            $trimBox->getY() + $mediaBox->getY(),
-            $trimBox->getWidth(),
-            $trimBox->getHeight(),
-            $trimBox->getUnits()
-        );
+        if ($trimBox) {
+            $trimBox = $this->options['rectangleFactoryFn'](
+                $trimBox->getX() + $mediaBox->getX(),
+                $trimBox->getY() + $mediaBox->getY(),
+                $trimBox->getWidth(),
+                $trimBox->getHeight(),
+                $trimBox->getUnits()
+            );
+        }
 
         return new PdfBoxesInformation(
             $mediaBox,
