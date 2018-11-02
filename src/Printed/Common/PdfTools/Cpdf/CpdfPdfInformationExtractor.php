@@ -327,8 +327,8 @@ class CpdfPdfInformationExtractor
          */
         if ($trimBox) {
             $trimBox = $this->options['rectangleFactoryFn'](
-                $trimBox->getX() + $mediaBox->getX(),
-                $trimBox->getY() + $mediaBox->getY(),
+                $trimBox->getX() - $mediaBox->getX(),
+                $trimBox->getY() - $mediaBox->getY(),
                 $trimBox->getWidth(),
                 $trimBox->getHeight(),
                 $trimBox->getUnits()
