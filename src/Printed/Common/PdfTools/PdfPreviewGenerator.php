@@ -244,9 +244,10 @@ class PdfPreviewGenerator
              * In seconds.
              *
              * Provide timeout for timing out individual previewing processes.
-             * Provide cumulative timing for timing out the whole previewing process (effectively: this method's wall time).
+             * Provide cumulative timeout for timing out the whole previewing process (effectively: this method's wall time).
              *
-             * Cumulative timeout takes precedence.
+             * Both can be defined at the same time, in which case each page can't take longer than "timeout" amount of
+             * time to preview AND all the previewing process can't take longer than "cumulativeTimeout" amount of time.
              */
             'timeout' => 60,
             'cumulativeTimeout' => null,
@@ -303,7 +304,7 @@ class PdfPreviewGenerator
         /*
          * Timeout calculating function
          */
-        $calculatePreviewingTimeoutFn = $options['cumulativeTimeout'] === 0
+        $calculatePreviewingTimeoutFn = !$options['cumulativeTimeout']
             ? static function () use ($options) { return $options['timeout']; }
             : static function () use ($options) {
                 static $previewingFinishTimestamp = null;
@@ -323,6 +324,13 @@ class PdfPreviewGenerator
                  */
                 if ($remainingPreviewingTimeSeconds < 1) {
                     $remainingPreviewingTimeSeconds = 1;
+                }
+
+                /*
+                 * Use the single page timeout if if it's smaller than the remaining cumulative timeout.
+                 */
+                if ($remainingPreviewingTimeSeconds > $options['timeout']) {
+                    $remainingPreviewingTimeSeconds = $options['timeout'];
                 }
 
                 return $remainingPreviewingTimeSeconds;
