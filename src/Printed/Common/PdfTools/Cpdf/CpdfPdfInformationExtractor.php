@@ -82,37 +82,25 @@ class CpdfPdfInformationExtractor
         }
 
         /*
-         * Check exit codes
+         * Is password protected?
          */
-        switch ($cpdfProcess->getExitCode()) {
-            case 0:
-                break;
-
-            case 1:
-                return new PdfInformation(
-                    $file,
-                    $cpdfProcess,
-                    [
-                        'isPasswordSecured' => true,
-                    ]
-                );
-
-            case 2:
-                return new PdfInformation(
-                    $file,
-                    $cpdfProcess,
-                    [
-                        'brokenPdfFile' => true,
-                    ]
-                );
-
-            default:
-                throw new \RuntimeException("Cpdf unexpectedly finished with exit code other than 0, 1 or 2 for file: `{$file->getPathname()}`");
+        if (1 === $cpdfProcess->getExitCode()) {
+            return new PdfInformation(
+                $file,
+                $cpdfProcess,
+                [
+                    'isPasswordSecured' => true,
+                ]
+            );
         }
 
         /*
          * Gather pdf file information. Note that due to the fact that pdfs can fail in unlimited number of ways, not
          * all the information is available all the time.
+         *
+         * Also, note that the cpdf process might have failed, but it's important to check the std output first, since
+         * e.g. encrypted pdfs are identified by cpdf as broken (exit code 2). In other words, std output takes precedence
+         * over std error output (and the process exit code)
          */
 
         /*
@@ -172,6 +160,7 @@ class CpdfPdfInformationExtractor
          * Pages line
          */
         $pdfPagesCount = null;
+
         if (($pagesLine = isset($processOutputLines[4]) ? $processOutputLines[4] : null)) {
             /*
              * Assert the line content
@@ -185,17 +174,46 @@ class CpdfPdfInformationExtractor
             $pdfPagesCount = (int) trim($regexpMatches[1]);
         }
 
-        return new PdfInformation(
-            $file,
-            $cpdfProcess,
-            [],
-            [
-                'opensWithWarnings' => $pdfPageOpensWithWarnings,
-                'encrypted' => $isPdfFileEncrypted,
-                'withRestrictivePermissions' => $isPdfFileWithRestrictedPermissions,
-                'pagesCount' => $pdfPagesCount,
-            ]
-        );
+        /*
+         * If any of the pdf details could be read, then assume the file is open-able (i.e. ignore the potential non-0 exit
+         * code)
+         */
+        if (
+            null !== $isPdfFileEncrypted
+            || null !== $isPdfFileWithRestrictedPermissions
+            || null !== $pdfPagesCount
+        ) {
+            return new PdfInformation(
+                $file,
+                $cpdfProcess,
+                [],
+                [
+                    'opensWithWarnings' => $pdfPageOpensWithWarnings,
+                    'encrypted' => $isPdfFileEncrypted,
+                    'withRestrictivePermissions' => $isPdfFileWithRestrictedPermissions,
+                    'pagesCount' => $pdfPagesCount,
+                ]
+            );
+        }
+
+        /*
+         * Check the exit code now
+         */
+        if (2 === $cpdfProcess->getExitCode()) {
+            return new PdfInformation(
+                $file,
+                $cpdfProcess,
+                [
+                    'brokenPdfFile' => true,
+                ]
+            );
+        }
+
+        /*
+         * The execution shouldn't reach this point as I've checked the success case and the error cases already. Everything
+         * more is unexpected result.
+         */
+        throw new \RuntimeException("Unexpected `cpdf -info` result. Command: {$cpdfProcess->getCommandLine()}, exit code: `{$cpdfProcess->getExitCode()}`, std output: `{$cpdfProcess->getOutput()}`, std error output: `{$cpdfProcess->getErrorOutput()}`");
     }
 
     /**
