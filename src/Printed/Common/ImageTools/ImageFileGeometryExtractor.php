@@ -70,9 +70,13 @@ class ImageFileGeometryExtractor
              *
              * Both are the same, but only the second form runs instantaneously
              *
+             * Note #2: Only the first frame/page/picture is selected for inspection (see the [0] at the end of the command).
+             * This obviously can be improved, however ask yourself why you ended up using this class against multi-page
+             * files in the first place. Use CpdfPdfInformationExtractor for inspecting pdfs.
+             *
              * DANGER: Do not use sprintf here to avoid having to escape the % signs in the identify command
              */
-            'exec ' . $this->options['imageMagickIdentifyCommand'] . ' -format "%w\n%h\n%x\n%y\n%U" ' . escapeshellarg($file->getPathname()),
+            'exec ' . $this->options['imageMagickIdentifyCommand'] . ' -format "%w\n%h\n%x\n%y\n%U" ' . escapeshellarg($file->getPathname()) . '[0]',
             null,
             null,
             null,
