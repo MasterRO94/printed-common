@@ -215,7 +215,10 @@ class PdfPreviewGenerator
         /*
          * Handle optional preview crash
          */
-        if ($options['crashOnPreviewingErrors']) {
+        if (
+            $options['crashOnPreviewingErrors']
+            && $previewProcessException
+        ) {
             throw $previewProcessException;
         }
 
