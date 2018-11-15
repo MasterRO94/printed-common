@@ -309,6 +309,7 @@ class MeasurementConverter
             ],
             self::UNIT_PT => [
                 self::UNIT_IN => self::PT_TO_IN,
+                self::UNIT_MM => self::PT_TO_MM,
             ],
         ];
 

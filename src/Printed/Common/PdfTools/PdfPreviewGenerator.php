@@ -3,8 +3,10 @@
 namespace Printed\Common\PdfTools;
 
 use Printed\Common\PdfTools\Cpdf\CpdfPdfInformationExtractor;
+use Printed\Common\PdfTools\Cpdf\ValueObject\PdfInformation;
 use Printed\Common\PdfTools\Utils\MeasurementConverter;
 use Printed\Common\PdfTools\Utils\SymfonyProcessRunner;
+use Printed\Common\PdfTools\ValueObject\PreviewFileAndPagePdfBoxesInformation;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Process\Process;
 
@@ -117,29 +119,70 @@ class PdfPreviewGenerator
     }
 
     /**
-     * @todo Dedupe code.
-     *
      * @param File $pdfFile
      * @param File $outputFile
      * @param int $pageNumber
      * @param array $options
-     * @return File
+     * @return File|PreviewFileAndPagePdfBoxesInformation|null See $options. Fyi, this may be null only if you use a specific
+     *  option. Otherwise, it either succeeds or crashes.
      */
     public function generatePreviewForPage(File $pdfFile, File $outputFile, $pageNumber, array $options = [])
     {
         $options = array_merge([
             'previewSizePx' => 200,
+
             /*
              * In seconds.
              */
             'timeout' => 60,
+
+            /*
+             * To get page information as well as the preview in one go. Note that the page information is retrieved
+             * from the file regardless of what this option says, as the information is needed for previewing.
+             */
+            'returnPreviewsWithPagePdfBoxesInformation' => false,
+
+            /*
+             * If "false", ask yourself how you want to handle errors then. Setting this to "false" makes sense only, when
+             * you set "returnPreviewsWithPagePdfBoxesInformation" to true, in which case the exceptions will be returned
+             * to you for inspection. Otherwise, you just get no preview files with no clue what went wrong.
+             *
+             * DANGER: The code will still crash if the file can't even be opened (malformed file or with password). I
+             * recommend you check the "hopeless errors" case yourself before you call this method.
+             */
+            'crashOnPreviewingErrors' => true,
+
+            /*
+             * Set to "false" if you want to short-circuit previewing if the file appears to open with warnings (cpdf-wise).
+             * It's great in conjunction with "returnPreviewsWithPagePdfBoxesInformation", where you can still get the
+             * pages' geometry back despite the warnings.
+             */
+            'attemptPreviewingDespitePdfWarnings' => true,
         ], $options);
 
         if (self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX < $options['previewSizePx']) {
             throw new \InvalidArgumentException(sprintf("Can't render a pdf page preview that's larger than `%d` px", self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX));
         }
 
-        $pdfBoxesInformation = $this->cpdfPdfInformationExtractor->readPdfBoxesInformationOfFirstPageInFile($pdfFile);
+        $pdfBoxesInformation = $this->cpdfPdfInformationExtractor->readPdfBoxesInformationOfPageInFile($pdfFile, $pageNumber);
+
+        /*
+         * Warnings during reading box information
+         */
+        if (
+            !$options['attemptPreviewingDespitePdfWarnings']
+            && $pdfBoxesInformation->getCpdfErrorOutput()
+        ) {
+            $runtimeException = new \RuntimeException("Previewing skipped due to warnings during page information retrieval. Warnings output: `{$pdfBoxesInformation->getCpdfErrorOutput()}`");
+
+            if ($options['crashOnPreviewingErrors']) {
+                throw $runtimeException;
+            }
+
+            return $options['returnPreviewsWithPagePdfBoxesInformation']
+                ? PreviewFileAndPagePdfBoxesInformation::createForFailedPreview($pdfBoxesInformation, $runtimeException)
+                : null;
+        }
 
         $longestMediaBoxSidePt = $this->measurementConverter->getConversion(
             $pdfBoxesInformation->getMediaBox()->getLongestSide(),
@@ -155,61 +198,181 @@ class PdfPreviewGenerator
             $renderingDpi = 5;
         }
 
-        $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
+        /*
+         * Preview
+         */
+        $previewProcessException = null;
 
-        return $outputFile;
+        try {
+            $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
+        } catch (\Exception $exception) {
+            /*
+             * Crashes are handled outside of try-catch.
+             */
+            $previewProcessException = $exception;
+        }
+
+        /*
+         * Handle optional preview crash
+         */
+        if (
+            $options['crashOnPreviewingErrors']
+            && $previewProcessException
+        ) {
+            throw $previewProcessException;
+        }
+
+        if ($options['returnPreviewsWithPagePdfBoxesInformation']) {
+            return $previewProcessException
+                ? PreviewFileAndPagePdfBoxesInformation::createForFailedPreview($pdfBoxesInformation, $previewProcessException)
+                : PreviewFileAndPagePdfBoxesInformation::createForSuccessfulPreview($pdfBoxesInformation, $outputFile);
+        }
+
+        return $previewProcessException ? null : $outputFile;
     }
 
     /**
-     * @todo Dedupe code.
-     *
      * @param File $pdfFile
-     * @param string $pathToOutput Path to output all files
+     * @param string|null $pathToOutput Path to output all files. Pass null if you're constructing the output files
+     *  yourself.
      * @param array $options
-     * @return File[]
+     * @return File[]|PreviewFileAndPagePdfBoxesInformation[] See $options.
      */
-    public function generatePagePreviews(File $pdfFile, $pathToOutput, array $options)
+    public function generatePagePreviews(File $pdfFile, $pathToOutput = null, array $options = [])
     {
         $options = array_merge([
             'previewSizePx' => 200,
+
             /*
              * In seconds.
+             *
+             * Provide timeout for timing out individual previewing processes.
+             * Provide cumulative timeout for timing out the whole previewing process (effectively: this method's wall time).
+             *
+             * Both can be defined at the same time, in which case each page can't take longer than "timeout" amount of
+             * time to preview AND all the previewing process can't take longer than "cumulativeTimeout" amount of time.
              */
             'timeout' => 60,
+            'cumulativeTimeout' => null,
+
+            /**
+             * @var int|null Pages after this number won't be previewed. Useful to avoid getting pwned.
+             */
+            'maxPagesPreviews' => null,
+
+            /*
+             * Override if you want to construct output files yourself. Your override must return an instance of a File.
+             */
+            'outputFileFactoryFn' => function ($pathToOutput, $pageNumber) {
+                return new File(sprintf('%s/%d.png', $pathToOutput, $pageNumber), false);
+            },
+
+            /*
+             * See the option for ::generatePreviewForPage()
+             */
+            'returnPreviewsWithPagePdfBoxesInformation' => false,
+
+            /*
+             * See the option for ::generatePreviewForPage()
+             */
+            'crashOnPreviewingErrors' => true,
+
+            /*
+             * See the option for ::generatePreviewForPage()
+             */
+            'attemptPreviewingDespitePdfWarnings' => true,
+
+            /**
+             * @var PdfInformation|null If you have an instance of pdf information for the supplied file already, you
+             *  can optimise this function by providing it as an option. Note that providing pdf information not for the
+             *  pdf file in question, is an undefined behaviour.
+             */
+            'pdfInformation' => null,
+
+            /**
+             * @var callable Provide this option, if you'd like to track the progress of previewing.
+             */
+            'previewingProgressFn' => function ($previewingProgressPercentage) {}
         ], $options);
 
         if (self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX < $options['previewSizePx']) {
             throw new \InvalidArgumentException(sprintf("Can't render a pdf page preview that's larger than `%d` px", self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX));
         }
 
-        $pagesCount = $this->cpdfPdfInformationExtractor->getPagesCount($pdfFile);
-        $pdfBoxesInformation = $this->cpdfPdfInformationExtractor->readPdfBoxesInformationOfFirstPageInFile($pdfFile);
+        $pdfInformation = $options['pdfInformation'] ?: $this->cpdfPdfInformationExtractor->readPdfInformation($pdfFile);
 
-        $longestMediaBoxSidePt = $this->measurementConverter->getConversion(
-            $pdfBoxesInformation->getMediaBox()->getLongestSide(),
-            MeasurementConverter::UNIT_PT,
-            MeasurementConverter::UNIT_IN
-        );
+        $pagesCount = $pdfInformation->getPagesCountOrThrow();
+        $maxPageNumberToPreview = $options['maxPagesPreviews'] < $pagesCount ? $options['maxPagesPreviews'] : $pagesCount;
 
         /*
-         * Calculate the dpi that will produce the intermediary bitmap's size. Don't go below 5 dpi.
+         * Timeout calculating function
          */
-        $renderingDpi = ceil(self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX / $longestMediaBoxSidePt);
-        if ($renderingDpi < 5) {
-            $renderingDpi = 5;
+        $calculatePreviewingTimeoutFn = !$options['cumulativeTimeout']
+            ? static function () use ($options) { return $options['timeout']; }
+            : static function () use ($options) {
+                static $previewingFinishTimestamp = null;
+
+                if (!$previewingFinishTimestamp) {
+                    $previewingFinishTimestamp = time() + $options['cumulativeTimeout'];
+                }
+
+                $remainingPreviewingTimeSeconds = $previewingFinishTimestamp - time();
+
+                /*
+                 * "Cleverly" don't allow the remaining time to evaluate less than 1. I rely on Symfony process to throw
+                 * the timeout exception when the selected process timeout is 1 second.
+                 *
+                 * Note: this is important this works this way, so 'crashOnPreviewingErrors':false still not crashes
+                 * regardless of the fact that the time limit was exceeded.
+                 */
+                if ($remainingPreviewingTimeSeconds < 1) {
+                    $remainingPreviewingTimeSeconds = 1;
+                }
+
+                /*
+                 * Use the single page timeout if if it's smaller than the remaining cumulative timeout.
+                 */
+                if ($remainingPreviewingTimeSeconds > $options['timeout']) {
+                    $remainingPreviewingTimeSeconds = $options['timeout'];
+                }
+
+                return $remainingPreviewingTimeSeconds;
+            };
+
+        /** @var File[]|PreviewFileAndPagePdfBoxesInformation[] $results */
+        $results = [];
+
+        /*
+         * Preview
+         */
+        for ($pageNumber = 1; $pageNumber <= $maxPageNumberToPreview; $pageNumber ++) {
+            /*
+             * Previewing progress
+             */
+            $options['previewingProgressFn']((int) (100 * $pageNumber / $maxPageNumberToPreview));
+
+            $previewingTimeout = $calculatePreviewingTimeoutFn();
+
+            /*
+             * Output file
+             */
+            $outputFile = $options['outputFileFactoryFn']($pathToOutput, $pageNumber);
+
+            /*
+             * Preview
+             */
+            $result = $this->generatePreviewForPage($pdfFile, $outputFile, $pageNumber, [
+                'previewSizePx' => $options['previewSizePx'],
+                'returnPreviewsWithPagePdfBoxesInformation' => $options['returnPreviewsWithPagePdfBoxesInformation'],
+                'crashOnPreviewingErrors' => $options['crashOnPreviewingErrors'],
+                'attemptPreviewingDespitePdfWarnings' => $options['attemptPreviewingDespitePdfWarnings'],
+                'timeout' => $previewingTimeout,
+            ]);
+
+            $results[] = $result;
         }
 
-        $outputFiles = [];
-
-        for ($pageNumber = 1; $pageNumber <= $pagesCount; $pageNumber ++) {
-            $outputFile = new File(sprintf('%s/%d.png', $pathToOutput, $pageNumber), false);
-
-            $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
-
-            $outputFiles[] = $outputFile;
-        }
-
-        return $outputFiles;
+        return $results;
     }
 
     /**
@@ -220,7 +383,7 @@ class PdfPreviewGenerator
      * @param File $outputFile
      * @return void
      */
-    private function createDownscaledPreviewFromPdf(File $pdfFile, array $options, $pageNumber, $renderingDpi, $outputFile)
+    private function createDownscaledPreviewFromPdf(File $pdfFile, array $options, $pageNumber, $renderingDpi, File $outputFile)
     {
         $previewProcess = $this->buildProcessForHighResPreview(
             $pdfFile,

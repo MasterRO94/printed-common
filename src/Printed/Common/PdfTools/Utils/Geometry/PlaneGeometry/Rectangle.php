@@ -14,10 +14,9 @@ use Printed\Common\PdfTools\Utils\MeasurementConverter;
  * it's down to you to ensure, that when working with many rectangles,
  * all of them has the same origin point. @todo Maybe that needs fixing
  *
- *
  * @package Printed\PdfTools\Utils\Geometry\PlaneGeometry
  */
-class Rectangle
+class Rectangle implements RectangleInterface
 {
     /** @var float */
     private $x;

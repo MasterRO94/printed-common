@@ -2,7 +2,7 @@
 
 namespace Printed\Common\PdfTools\Cpdf\ValueObject;
 
-use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
+use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\RectangleInterface;
 
 /**
  * Class PdfBoxesInformation
@@ -11,20 +11,32 @@ use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
  */
 class PdfBoxesInformation
 {
-    /** @var Rectangle */
+    /** @var RectangleInterface */
     private $mediaBox;
 
-    /** @var Rectangle|null */
+    /** @var RectangleInterface|null */
     private $trimBox;
 
-    public function __construct(Rectangle $mediaBox, Rectangle $trimBox = null)
-    {
+    /**
+     * This is useful to know whether there were pdf opening errors that cpdf managed to recover from and still read
+     * the boxes information.
+     *
+     * @var string|null
+     */
+    private $cpdfErrorOutput;
+
+    public function __construct(
+        RectangleInterface $mediaBox,
+        RectangleInterface $trimBox = null,
+        $cpdfErrorOutput = null
+    ) {
         $this->mediaBox = $mediaBox;
         $this->trimBox = $trimBox;
+        $this->cpdfErrorOutput = $cpdfErrorOutput ?: null;
     }
 
     /**
-     * @return Rectangle
+     * @return RectangleInterface
      */
     public function getMediaBox()
     {
@@ -32,10 +44,15 @@ class PdfBoxesInformation
     }
 
     /**
-     * @return Rectangle|null
+     * @return RectangleInterface|null
      */
     public function getTrimBox()
     {
         return $this->trimBox;
+    }
+
+    public function getCpdfErrorOutput()
+    {
+        return $this->cpdfErrorOutput;
     }
 }

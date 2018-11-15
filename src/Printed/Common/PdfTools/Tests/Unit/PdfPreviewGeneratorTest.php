@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use Printed\Common\PdfTools\BinaryPathConfiguration;
 use Printed\Common\PdfTools\Cpdf\CpdfPdfInformationExtractor;
 use Printed\Common\PdfTools\PdfPreviewGenerator;
+use Printed\Common\PdfTools\Tests\TestUtils;
 use Printed\Common\PdfTools\Utils\MeasurementConverter;
 use Symfony\Component\HttpFoundation\File\File;
 
@@ -17,11 +18,11 @@ class PdfPreviewGeneratorTest extends TestCase
     public function setUp()
     {
         $binaryPathConfiguration = new BinaryPathConfiguration(
-            '/usr/local/bin/gs',
-            '/usr/local/bin/convert'
+            'gs',
+            'convert'
         );
 
-        $cpdfInformationExtractor = new CpdfPdfInformationExtractor(__DIR__ . '/../../../../../');
+        $cpdfInformationExtractor = new CpdfPdfInformationExtractor(TestUtils::getProjectDir());
         $measurementConverter = new MeasurementConverter();
 
         $this->pdfPreviewGenerator = new PdfPreviewGenerator(
@@ -49,6 +50,8 @@ class PdfPreviewGeneratorTest extends TestCase
         );
 
 //        unlink($outputFile->getPathname());
+
+        $this->expectNotToPerformAssertions();
     }
 
     /**
@@ -67,5 +70,7 @@ class PdfPreviewGeneratorTest extends TestCase
                 'timeout' => 5
             ]
         );
+
+        $this->expectNotToPerformAssertions();
     }
 }
