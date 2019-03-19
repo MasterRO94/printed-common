@@ -293,12 +293,12 @@ class MeasurementConverter
         $conversionsFromToMultiplierTable = [
             self::UNIT_MM => [
                 self::UNIT_MM => 1,
-                self::UNIT_CM => self::MM_TO_CM,
+                self::UNIT_CM => (1 / self::MM_TO_CM),
                 self::UNIT_IN => self::MM_TO_IN,
                 self::UNIT_PT => self::MM_TO_PT,
             ],
             self::UNIT_CM => [
-                self::UNIT_MM => (1 / self::MM_TO_CM),
+                self::UNIT_MM => self::MM_TO_CM,
                 self::UNIT_CM => 1,
                 self::UNIT_IN => self::MM_TO_IN * self::MM_TO_CM,
             ],

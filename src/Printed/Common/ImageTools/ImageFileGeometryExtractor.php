@@ -57,6 +57,7 @@ class ImageFileGeometryExtractor
 
     /**
      * @param File $file
+     * @param array $options
      * @return ImageFileGeometry
      */
     public function getImageFileGeometry(File $file, array $options = [])
