@@ -59,24 +59,38 @@ class ImageFileGeometryExtractor
      * @param File $file
      * @return ImageFileGeometry
      */
-    public function getImageFileGeometry(File $file)
+    public function getImageFileGeometry(File $file, array $options = [])
     {
-        $identifyProcess = new Process(
+        $options = array_merge([
             /*
-             * Note the following:
-             *
-             * 1. -format "%[width]x%[height] %[resolution.x]x%[resolution.y] %[units]"
-             * 2. -format "%wx%h %xx%y %U"
-             *
-             * Both are the same, but only the second form runs instantaneously
-             *
-             * Note #2: Only the first frame/page/picture is selected for inspection (see the [0] at the end of the command).
-             * This obviously can be improved, however ask yourself why you ended up using this class against multi-page
-             * files in the first place. Use CpdfPdfInformationExtractor for inspecting pdfs.
-             *
-             * DANGER: Do not use sprintf here to avoid having to escape the % signs in the identify command
+             * Will extract the first frame/layer/whatever from the raster file only. This is a noop for flat files.
+             * This should always be enabled for extra speed. It was introduced to debug an nfs-syncing issue.
              */
-            'exec ' . $this->options['imageMagickIdentifyCommand'] . ' -format "%w\n%h\n%x\n%y\n%U" ' . escapeshellarg($file->getPathname()) . '[0]',
+            'forcefullyReadTheFirstFrameOnly' => true,
+        ], $options);
+
+        /*
+         * Note the following:
+         *
+         * 1. -format "%[width]x%[height] %[resolution.x]x%[resolution.y] %[units]"
+         * 2. -format "%wx%h %xx%y %U"
+         *
+         * Both are the same, but only the second form runs instantaneously
+         *
+         * Note #2: Only the first frame/page/picture is selected for inspection (see the [0] at the end of the command).
+         * This obviously can be improved, however ask yourself why you ended up using this class against multi-page
+         * files in the first place. Use CpdfPdfInformationExtractor for inspecting pdfs.
+         *
+         * DANGER: Do not use sprintf here to avoid having to escape the % signs in the identify command
+         */
+        $processCommand = 'exec ' . $this->options['imageMagickIdentifyCommand'] . ' -format "%w\n%h\n%x\n%y\n%U\n" ' . escapeshellarg($file->getPathname());
+
+        if ($options['forcefullyReadTheFirstFrameOnly']) {
+            $processCommand .= '[0]';
+        }
+
+        $identifyProcess = new Process(
+            $processCommand,
             null,
             null,
             null,
@@ -90,7 +104,18 @@ class ImageFileGeometryExtractor
         /*
          * Assert the amount of output
          */
-        if (5 !== count($processOutputParts)) {
+        if (
+            /*
+             * DANGER: I need this function to crash on multi-page/layer/frame files due to not being easily able to determine
+             * in pdcv1 whether pdc-convert produces 1 or many files, when converting this file. This was considered a
+             * temporary fix at the point of writing this so I didn't want to spend more time investigating it. If it
+             * causes problems at the time you're reading this, please make sure pdcv1 usage handles multi-page/layer raster
+             * files correctly (at the time of writing this, it wasn't crashing and was carrying on assuming that the preview
+             * was empty (implementation detail, don't ask))
+             */
+//            $options['forcefullyReadTheFirstFrameOnly']
+            6 !== count($processOutputParts)
+        ) {
             throw new \RuntimeException("Imagemagick identify command produced unexpected output: {$identifyProcess->getOutput()}");
         }
 
