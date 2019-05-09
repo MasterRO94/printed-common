@@ -2,6 +2,7 @@
 
 namespace Printed\Common\PdfTools\Cpdf;
 
+use RuntimeException;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Process\Process;
 
@@ -59,7 +60,7 @@ class CpdfPdfSplitter
         $cpdfProcess->mustRun();
 
         if ($cpdfProcess->getErrorOutput()) {
-            throw new \RuntimeException("`cpdf` split command produced error output: {$cpdfProcess->getErrorOutput()}.");
+            throw new RuntimeException("`cpdf` split command produced error output: {$cpdfProcess->getErrorOutput()}.");
         }
 
         // Glob the PDF page files and return them sorted.
