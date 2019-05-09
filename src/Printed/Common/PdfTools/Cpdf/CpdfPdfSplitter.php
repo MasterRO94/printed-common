@@ -8,6 +8,7 @@ use Symfony\Component\Process\Process;
 
 class CpdfPdfSplitter
 {
+    /** @var string */
     private $vendorBinDir;
 
     /**
