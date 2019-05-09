@@ -63,7 +63,6 @@ class CpdfPdfSplitter
             throw new RuntimeException("`cpdf` split command produced error output: {$cpdfProcess->getErrorOutput()}.");
         }
 
-        // Glob the PDF page files and return them sorted.
         $globFiles = glob(
             sprintf('%s/%s.[0-9]*.%s', $pathInfo['dirname'], $pathInfo['filename'], $pathInfo['extension'])
         );
