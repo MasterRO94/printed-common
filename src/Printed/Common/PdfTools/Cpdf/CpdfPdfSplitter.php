@@ -14,7 +14,7 @@ class CpdfPdfSplitter
     /**
      * @param string $vendorBinDir
      */
-    private function __construct($vendorBinDir)
+    public function __construct($vendorBinDir)
     {
         $this->vendorBinDir = $vendorBinDir;
     }
