@@ -27,9 +27,9 @@ class CpdfPdfSplitter
      */
     public function split(File $pdfFile, array $options = [])
     {
-        $options = array_merge($options, [
+        $options = array_merge([
             'preventPreserveObjectStreams' => false,
-        ]);
+        ], $options);
 
         if ($pdfFile->guessExtension() !== 'pdf') {
             throw new RuntimeException("Can't split by pages a non-pdf file. File: `{$pdfFile->getPathname()}`.");
