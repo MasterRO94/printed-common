@@ -31,6 +31,10 @@ class CpdfPdfSplitter
             'preventPreserveObjectStreams' => false,
         ]);
 
+        if ($pdfFile->guessExtension() !== 'pdf') {
+            throw new RuntimeException("Can't split by pages a non-pdf file. File: `{$pdfFile->getPathname()}`.");
+        }
+
         $outputFiles = [];
 
         $pathname = $pdfFile->getPathname();
