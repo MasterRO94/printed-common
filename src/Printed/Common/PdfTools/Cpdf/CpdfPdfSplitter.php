@@ -21,7 +21,7 @@ class CpdfPdfSplitter
 
     /**
      * @param File $pdfFile
-     * @param string[] $options An array of options to use in the spit command.
+     * @param array $options An array of options to use in the spit command.
      *
      * @return File[]
      */
