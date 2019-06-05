@@ -37,9 +37,9 @@ class CpdfPdfSplitter
 
         $outputFiles = [];
 
-        $pathname = $pdfFile->getPathname();
+        $inputPathname = $pdfFile->getPathname();
 
-        $pathInfo = pathinfo($pathname);
+        $pathInfo = pathinfo($inputPathname);
 
         $extraArguments = [];
 
@@ -54,10 +54,14 @@ class CpdfPdfSplitter
             $pathInfo['extension']
         );
 
+        /*
+         * -remove-bookmarks fixes an issue caused by corrupt bookmarks.
+         * @see https://github.com/johnwhitington/cpdf-source/issues/123
+         */
         $command = sprintf(
-            './cpdf -split %s %s -o %s',
+            './cpdf -remove-bookmarks -i %1$s AND %2$s -split -o %3$s',
+            $inputPathname,
             implode(' ', $extraArguments),
-            $pathname,
             $outputPathname
         );
 
