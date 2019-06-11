@@ -9,7 +9,7 @@ The code in this package must be runnable on PHP5.
 
 ### Requirements
 
-* [Zeus](https://https://github.com/sudoash/zeus)
+* [Zeus](https://github.com/sudoash/zeus)
 
 ### Run the tests
 
