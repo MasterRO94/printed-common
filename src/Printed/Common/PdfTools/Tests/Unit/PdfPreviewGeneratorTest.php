@@ -2,15 +2,13 @@
 
 namespace Printed\Common\PdfTools\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
 use Printed\Common\PdfTools\BinaryPathConfiguration;
 use Printed\Common\PdfTools\Cpdf\CpdfPdfInformationExtractor;
 use Printed\Common\PdfTools\PdfPreviewGenerator;
-use Printed\Common\PdfTools\Tests\TestUtils;
 use Printed\Common\PdfTools\Utils\MeasurementConverter;
 use Symfony\Component\HttpFoundation\File\File;
 
-class PdfPreviewGeneratorTest extends TestCase
+class PdfPreviewGeneratorTest extends CpdfBaseTestCase
 {
     /** @var PdfPreviewGenerator */
     private $pdfPreviewGenerator;
@@ -22,7 +20,8 @@ class PdfPreviewGeneratorTest extends TestCase
             'convert'
         );
 
-        $cpdfInformationExtractor = new CpdfPdfInformationExtractor(TestUtils::getProjectDir());
+        $cpdfInformationExtractor = new CpdfPdfInformationExtractor($this->getPathToCpdfBinary());
+
         $measurementConverter = new MeasurementConverter();
 
         $this->pdfPreviewGenerator = new PdfPreviewGenerator(

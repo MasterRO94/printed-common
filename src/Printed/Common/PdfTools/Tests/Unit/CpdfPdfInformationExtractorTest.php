@@ -2,13 +2,12 @@
 
 namespace Printed\Common\PdfTools\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
 use Printed\Common\PdfTools\Cpdf\CpdfPdfInformationExtractor;
 use Printed\Common\PdfTools\Cpdf\ValueObject\PdfInformation;
 use Printed\Common\PdfTools\Tests\TestUtils;
 use Symfony\Component\HttpFoundation\File\File;
 
-class CpdfPdfInformationExtractorTest extends TestCase
+class CpdfPdfInformationExtractorTest extends CpdfBaseTestCase
 {
     /** @var string */
     private $projectDir;
@@ -19,7 +18,7 @@ class CpdfPdfInformationExtractorTest extends TestCase
     public function setUp()
     {
         $this->projectDir = TestUtils::getProjectDir();
-        $this->cpdfInformationExtractor = new CpdfPdfInformationExtractor($this->projectDir);
+        $this->cpdfInformationExtractor = new CpdfPdfInformationExtractor($this->getPathToCpdfBinary());
     }
 
     public function produceTestCasesForReadPdfInformation()
