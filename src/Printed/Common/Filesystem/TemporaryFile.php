@@ -1,6 +1,6 @@
 <?php
 
-namespace Printed\Common\FileSystem;
+namespace Printed\Common\Filesystem;
 
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\File\File;
