@@ -8,11 +8,8 @@ use Symfony\Component\Process\Process;
 
 class CpdfPdfSplitter
 {
-    /** @var string */
-    private $binaryPath;
-
-    /** @var string */
-    private $binaryFilename;
+    /** @var CpdfBinaryConfiguration */
+    private $binaryConfig;
 
     /**
      * @param string $binaryPath Full path to the cpdf binary.
@@ -21,12 +18,7 @@ class CpdfPdfSplitter
      */
     public function __construct($binaryPath)
     {
-        CpdfBinaryValidator::assertBinaryPath($binaryPath);
-
-        $pathInfo = pathinfo($binaryPath);
-
-        $this->binaryPath = $pathInfo['dirname'];
-        $this->binaryFilename = $pathInfo['basename'];
+        $this->binaryConfig = CpdfBinaryConfiguration::create($binaryPath);
     }
 
     /**
@@ -69,7 +61,7 @@ class CpdfPdfSplitter
          * @see https://github.com/johnwhitington/cpdf-source/issues/123
          */
         $command = implode(' ', [
-            sprintf('./%s -remove-bookmarks -i %s', $this->binaryFilename, $inputPathname),
+            sprintf('exec ./%s -remove-bookmarks -i %s', $this->binaryConfig->getFilename(), $inputPathname),
             sprintf(
                 'AND %s -split -o %s',
                 implode(' ', $extraArguments),
@@ -77,7 +69,7 @@ class CpdfPdfSplitter
             ),
         ]);
 
-        $cpdfProcess = new Process($command, $this->binaryPath);
+        $cpdfProcess = new Process($command, $this->binaryConfig->getPath());
         $cpdfProcess->mustRun();
 
         if ($cpdfProcess->getErrorOutput()) {

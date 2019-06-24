@@ -20,11 +20,8 @@ use Symfony\Component\Process\Process;
  */
 class CpdfPdfInformationExtractor
 {
-    /** @var string */
-    private $binaryPath;
-
-    /** @var string */
-    private $binaryFilename;
+    /** @var CpdfBinaryConfiguration */
+    private $binaryConfig;
 
     /** @var array */
     private $options;
@@ -37,9 +34,9 @@ class CpdfPdfInformationExtractor
      */
     public function __construct($binaryPath, array $options = [])
     {
-        CpdfBinaryValidator::assertBinaryPath($binaryPath);
+        $config = CpdfBinaryConfiguration::create($binaryPath);
 
-        $pathInfo = pathinfo($binaryPath);
+        $this->binaryConfig = $config;
 
         $options = array_merge([
             /*
@@ -53,8 +50,6 @@ class CpdfPdfInformationExtractor
             },
         ], $options);
 
-        $this->binaryPath = $pathInfo['dirname'];
-        $this->binaryFilename = $pathInfo['basename'];
         $this->options = $options;
     }
 
@@ -77,11 +72,11 @@ class CpdfPdfInformationExtractor
 
         $cpdfProcess = new Process(
             sprintf(
-                './%s -info -i %s',
-                $this->binaryFilename,
+                'exec ./%s -info -i %s',
+                $this->binaryConfig->getFilename(),
                 escapeshellarg($file->getPathname())
             ),
-            $this->binaryPath,
+            $this->binaryConfig->getPath(),
             null,
             null,
             $options['pdfOpenTimeoutSeconds']
@@ -272,22 +267,13 @@ class CpdfPdfInformationExtractor
          */
         $cpdfProcess = new Process(
             sprintf(
-                './%1$s -i %2$s %3$s-%3$s -page-info',
-                $this->binaryFilename,
+                'exec ./%1$s -i %2$s %3$s-%3$s -page-info',
+                $this->binaryConfig->getFilename(),
                 escapeshellarg($pdfFile->getPathname()),
                 $pageNumber
             ),
-            $this->binaryPath
+            $this->binaryConfig->getPath()
         );
-
-//        $cpdfProcess = new Process(
-//            sprintf(
-//                '%1$s -i %2$s %3$s-%3$s -page-info',
-//                sprintf('%s/%s', $this->binaryPath, $this->binaryFilename),
-//                escapeshellarg($pdfFile->getPathname()),
-//                $pageNumber
-//            )
-//        );
 
         /*
          * Note that this will crash on hopeless errors but not on cpdf warnings, which is desired. Cpdf will try to
