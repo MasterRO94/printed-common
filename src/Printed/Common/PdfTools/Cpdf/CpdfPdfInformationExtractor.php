@@ -34,9 +34,7 @@ class CpdfPdfInformationExtractor
      */
     public function __construct($binaryPath, array $options = [])
     {
-        $config = CpdfBinaryConfiguration::create($binaryPath);
-
-        $this->binaryConfig = $config;
+        $this->binaryConfig = CpdfBinaryConfiguration::create($binaryPath);
 
         $options = array_merge([
             /*
