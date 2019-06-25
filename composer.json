@@ -2,7 +2,6 @@
   "name": "printed/common",
   "description": "A library of common utilities",
   "type": "library",
-  "minimum-stability": "stable",
   "authors": [
     {
       "name": "Printed Developers",
