@@ -352,6 +352,56 @@ class MeasurementConverter
     }
 
     /**
+     * @param int $widthPx
+     * @param int $heightPx
+     * @param int $resolutionHorizontal
+     * @param int $resolutionVertical
+     * @param string $resolutionUnit
+     * @return array Tuple of structure: [ widthMm?: float, heightMm?: float ]
+     */
+    public function calculatePhysicalDimensions(
+        $widthPx,
+        $heightPx,
+        $resolutionHorizontal,
+        $resolutionVertical,
+        $resolutionUnitPixelsPer
+    ) {
+        /*
+         * If for some reason the resolutions ended up to be 0, then assume I can't get physical size. At the very least,
+         * I can't divide by zero.
+         */
+        if (!$resolutionHorizontal && !$resolutionVertical) {
+            return [null, null];
+        }
+
+        /*
+         * If we don't recognise the units, fail silently.
+         */
+        if (!in_array($resolutionUnitPixelsPer, [
+            self::UNIT_CM,
+            self::UNIT_IN,
+            self::UNIT_MM,
+            self::UNIT_PT,
+        ])) {
+            return [null, null];
+        }
+
+        return [
+            $this->getConversion(
+                $widthPx / $resolutionHorizontal,
+                $resolutionUnitPixelsPer,
+                self::UNIT_MM
+            ),
+
+            $this->getConversion(
+                $heightPx / $resolutionVertical,
+                $resolutionUnitPixelsPer,
+                self::UNIT_MM
+            ),
+        ];
+    }
+
+    /**
      * @return int
      */
     public function getIdealResolution()

@@ -137,6 +137,28 @@ class PdfPreviewGenerator
             'timeout' => 60,
 
             /*
+             * Generates preview for a bounding box of the given dimensions, if provided.
+             * The artwork in the PDF file will be centred and, if smaller, padded with
+             * background colour, if larger, cropped.
+             */
+            'relativeDimensionsWidth' => null,
+            'relativeDimensionsHeight' => null,
+
+            /*
+             * If relative dimensions are provided but without a resolution, default to
+             * whatever the detected resolution of the provided file is (72 dpi by default)
+             */
+            'relativeDimensionsResolutionHorizontal' => null,
+            'relativeDimensionsResolutionVertical' => null,
+
+            /*
+             * One of \Printed\Common\PdfTools\Utils\MeasurementConverter::UNIT_*
+             * Same caveats as the above apply - if not provided, use file.
+             */
+            'relativeDimensionsUnit' => null,
+            'relativeDimensionsResolutionUnit' => null,
+
+            /*
              * To get page information as well as the preview in one go. Note that the page information is retrieved
              * from the file regardless of what this option says, as the information is needed for previewing.
              */
@@ -204,7 +226,13 @@ class PdfPreviewGenerator
         $previewProcessException = null;
 
         try {
-            $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
+            $this->createDownscaledPreviewFromPdf(
+                $pdfFile,
+                $options,
+                $pageNumber,
+                $renderingDpi,
+                $outputFile
+            );
         } catch (\Exception $exception) {
             /*
              * Crashes are handled outside of try-catch.
@@ -395,7 +423,8 @@ class PdfPreviewGenerator
         $downScaleProcess = $this->buildProcessForDownscalePreview(
             $outputFile,
             $options['previewSizePx'],
-            $outputFile
+            $outputFile,
+            $options['relativeDimensions']
         );
 
         SymfonyProcessRunner::runSymfonyProcessesWithTimeout([
@@ -416,7 +445,12 @@ class PdfPreviewGenerator
     private function buildProcessForHighResPreview(File $inputFile, $pageNumber, $renderingDpi, File $outputFile)
     {
         return new Process(sprintf(
-            'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -dFirstPage=%2$d -dLastPage=%3$d -dTextAlphaBits=2 -dGraphicsAlphaBits=2 -r%4$d -sOutputFile=%5$s %6$s',
+            implode(' ', [
+                'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m',
+                '-dFirstPage=%2$d -dLastPage=%3$d',
+                '-dTextAlphaBits=2 -dGraphicsAlphaBits=2',
+                '-r%4$d -sOutputFile=%5$s %6$s'
+            ]),
             $this->pathToGhostscript,
             $pageNumber,
             $pageNumber,
@@ -434,14 +468,27 @@ class PdfPreviewGenerator
      * @param File $outputFile
      * @return Process
      */
-    private function buildProcessForDownscalePreview(File $inputFile, $previewSizePx, File $outputFile)
-    {
+    private function buildProcessForDownscalePreview(
+        File $inputFile,
+        $previewSizePx,
+        File $outputFile,
+        $relativeDimensionsWidthPx = null,
+        $relativeDimensionsHeightPx = null
+    ) {
         return new Process(sprintf(
-            'exec %1$s -resize %2$dx%2$d png:%3$s png:%4$s',
+            implode(' ', array_filter([
+                'exec %1$s',
+                ($relativeDimensionsHeightPx && $relativeDimensionsWidthPx)
+                    ? '-gravity Center -extent %5$dx%6$d+0+0 -crop %5$dx%6$d+0+0'
+                    : null,
+                '-resize %2$dx%2$d png:%3$s png:%4$s',
+            ])),
             $this->pathToConvert,
             $previewSizePx,
             escapeshellarg($inputFile->getPathname()),
-            escapeshellarg($outputFile->getPathname())
+            escapeshellarg($outputFile->getPathname()),
+            $relativeDimensionsWidthPx,
+            $relativeDimensionsHeightPx
         ));
     }
 }
