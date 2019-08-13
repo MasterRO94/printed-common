@@ -145,18 +145,12 @@ class PdfPreviewGenerator
             'relativeDimensionsHeight' => null,
 
             /*
-             * If relative dimensions are provided but without a resolution, default to
-             * whatever the detected resolution of the provided file is (72 dpi by default)
+             * Some sane defaults for print use. Clients can override if they so desire.
              */
-            'relativeDimensionsResolutionHorizontal' => null,
-            'relativeDimensionsResolutionVertical' => null,
-
-            /*
-             * One of \Printed\Common\PdfTools\Utils\MeasurementConverter::UNIT_*
-             * Same caveats as the above apply - if not provided, use file.
-             */
-            'relativeDimensionsUnit' => null,
-            'relativeDimensionsResolutionUnit' => null,
+            'relativeDimensionsUnit' => MeasurementConverter::UNIT_MM,
+            'relativeDimensionsResolutionHorizontal' => 72,
+            'relativeDimensionsResolutionVertical' => 72,
+            'relativeDimensionsResolutionUnit' => MeasurementConverter::UNIT_IN,
 
             /*
              * To get page information as well as the preview in one go. Note that the page information is retrieved
@@ -219,6 +213,27 @@ class PdfPreviewGenerator
         if ($renderingDpi < 5) {
             $renderingDpi = 5;
         }
+
+        /*
+         * Calculate the relative dimensions width and height in pixels
+         */
+        $widthPx = $heightPx = null;
+        $width = (float) $options['relativeDimensionsWidth'];
+        $height = (float) $options['relativeDimensionsHeight'];
+        if ($width && $height) {
+            $widthPx = $this->measurementConverter->getConversion(
+                $width,
+                $options['relativeDimensionsUnit'],
+                $options['relativeDimensionsResolutionUnit']
+            ) * $options['relativeDimensionsResolutionHorizontal'];
+            $heightPx = $this->measurementConverter->getConversion(
+                $height,
+                $options['relativeDimensionsUnit'],
+                $options['relativeDimensionsResolutionUnit']
+            ) * $options['relativeDimensionsResolutionVertical'];
+        }
+        $options['relativeDimensionsHeightPx'] = $heightPx;
+        $options['relativeDimensionsWidthPx'] = $widthPx;
 
         /*
          * Preview
@@ -424,7 +439,8 @@ class PdfPreviewGenerator
             $outputFile,
             $options['previewSizePx'],
             $outputFile,
-            $options['relativeDimensions']
+            $options['relativeDimensionsWidthPx'],
+            $options['relativeDimensionsHeightPx']
         );
 
         SymfonyProcessRunner::runSymfonyProcessesWithTimeout([
