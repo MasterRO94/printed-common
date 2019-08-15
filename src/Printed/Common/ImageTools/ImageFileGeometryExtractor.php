@@ -134,24 +134,6 @@ class ImageFileGeometryExtractor
          * @var string One of the following: Undefined, PixelsPerInch, PixelsPerCentimeter
          */
         $resolutionUnit = trim($processOutputParts[4]) ?: self::IMAGEMAGICK_UNIT_UNDEFINED;
-        $resolutionUnitPixelsPer = null;
-        switch ($resolutionUnit) {
-            case self::IMAGEMAGICK_UNIT_PIXELS_PER_CM:
-                $resolutionUnitPixelsPer = MeasurementConverter::UNIT_CM;
-                break;
-            case self::IMAGEMAGICK_UNIT_PIXELS_PER_INCH:
-                $resolutionUnitPixelsPer = MeasurementConverter::UNIT_IN;
-                break;
-            case self::IMAGEMAGICK_UNIT_UNDEFINED:
-                /*
-                 * I decided that I won't try to guess/default the unit if it's not provided in the file. This might
-                 * need changing if someone complains. That's highly unlikely, though
-                 */
-                $resolutionUnitPixelsPer = MeasurementConverter::UNIT_NO_UNIT;
-                break;
-            default:
-                throw new \RuntimeException("Unrecognised image file resolution unit: `{$resolutionUnit}`");
-        }
 
         /*
          * Calculate the physical size.
@@ -164,17 +146,75 @@ class ImageFileGeometryExtractor
          * Keep in mind that the dpi hint mentioned above doesn't need (or respects) the physical size hint from the file.
          * Only the pixel dimensions (and the physical size that _we_ choose) contributes to the dpi hint.
          */
-        list($widthMm, $heightMm) = $this->measurementConverter->calculatePhysicalDimensions(
+        list($widthMm, $heightMm) = $this->calculatePhysicalDimensions(
             $widthPx,
             $heightPx,
             $resolutionHorizontal,
             $resolutionVertical,
-            $resolutionUnitPixelsPer
+            $resolutionUnit
         );
 
         return new ImageFileGeometry(
             $this->options['rectangleFactoryFn'](0, 0, $widthPx, $heightPx),
             $widthMm === null ? null : $this->options['rectangleFactoryFn'](0, 0, $widthMm, $heightMm)
         );
+    }
+
+    /**
+     * @param int $widthPx
+     * @param int $heightPx
+     * @param int $resolutionHorizontal
+     * @param int $resolutionVertical
+     * @param string $resolutionUnit
+     * @return array Tuple of structure: [ widthMm?: float, heightMm?: float ]
+     */
+    private function calculatePhysicalDimensions($widthPx, $heightPx, $resolutionHorizontal, $resolutionVertical, $resolutionUnit)
+    {
+        /*
+         * If for some reason the resolutions ended up to be 0, then assume I can't get physical size. At the very least,
+         * I can't divide by zero.
+         */
+        if (!$resolutionHorizontal && !$resolutionVertical) {
+            return [null, null];
+        }
+
+        $widthMm = null;
+        $heightMm = null;
+
+        switch ($resolutionUnit) {
+            case self::IMAGEMAGICK_UNIT_PIXELS_PER_CM:
+                $widthMm = $this->measurementConverter->getConversion(
+                    $widthPx / $resolutionHorizontal, MeasurementConverter::UNIT_CM, MeasurementConverter::UNIT_MM
+                );
+
+                $heightMm = $this->measurementConverter->getConversion(
+                    $heightPx / $resolutionVertical, MeasurementConverter::UNIT_CM, MeasurementConverter::UNIT_MM
+                );
+
+                break;
+
+            case self::IMAGEMAGICK_UNIT_PIXELS_PER_INCH:
+                $widthMm = $this->measurementConverter->getConversion(
+                    $widthPx / $resolutionHorizontal, MeasurementConverter::UNIT_IN, MeasurementConverter::UNIT_MM
+                );
+
+                $heightMm = $this->measurementConverter->getConversion(
+                    $heightPx / $resolutionVertical, MeasurementConverter::UNIT_IN, MeasurementConverter::UNIT_MM
+                );
+
+                break;
+
+            case self::IMAGEMAGICK_UNIT_UNDEFINED:
+                /*
+                 * I decided that I won't try to guess/default the unit if it's not provided in the file. This might
+                 * need changing if someone complains. That's highly unlikely, though
+                 */
+                return [null, null];
+
+            default:
+                throw new \RuntimeException("Unrecognised image file resolution unit: `{$resolutionUnit}`");
+        }
+
+        return [$widthMm, $heightMm];
     }
 }
