@@ -143,14 +143,7 @@ class PdfPreviewGenerator
              */
             'relativeDimensionsWidth' => null,
             'relativeDimensionsHeight' => null,
-
-            /*
-             * Some sane defaults for print use. Clients can override if they so desire.
-             */
             'relativeDimensionsUnit' => MeasurementConverter::UNIT_MM,
-            'relativeDimensionsResolutionHorizontal' => 72,
-            'relativeDimensionsResolutionVertical' => 72,
-            'relativeDimensionsResolutionUnit' => MeasurementConverter::UNIT_IN,
 
             /*
              * To get page information as well as the preview in one go. Note that the page information is retrieved
@@ -200,16 +193,44 @@ class PdfPreviewGenerator
                 : null;
         }
 
-        $longestMediaBoxSidePt = $this->measurementConverter->getConversion(
+        /*
+         * Calculate rendering DPI based on the PDF artwork and - if provided -
+         * the relative dimensions as well
+         */
+        $longestRelativeDimensionsSideInches = 0.0;
+        $relativeDimensionsWidth = (float) $options['relativeDimensionsWidth'];
+        $relativeDimensionsHeight = (float) $options['relativeDimensionsHeight'];
+        if ($relativeDimensionsWidth && $relativeDimensionsHeight) {
+            $relativeDimensionsWidthInches = $this->measurementConverter->getConversion(
+                $relativeDimensionsWidth,
+                $options['relativeDimensionsUnit'],
+                MeasurementConverter::UNIT_IN
+            );
+            $relativeDimensionsHeightInches = $this->measurementConverter->getConversion(
+                $relativeDimensionsHeight,
+                $options['relativeDimensionsUnit'],
+                MeasurementConverter::UNIT_IN
+            );
+            $longestRelativeDimensionsSideInches =
+                $relativeDimensionsWidthInches > $relativeDimensionsHeightInches
+                    ? $relativeDimensionsWidthInches
+                    : $relativeDimensionsHeightInches
+            ;
+        }
+
+        $longestMediaBoxSideInches = $this->measurementConverter->getConversion(
             $pdfBoxesInformation->getMediaBox()->getLongestSide(),
             MeasurementConverter::UNIT_PT,
             MeasurementConverter::UNIT_IN
         );
+        if ($longestRelativeDimensionsSideInches > $longestMediaBoxSideInches) {
+            $longestMediaBoxSideInches = $longestRelativeDimensionsSideInches;
+        }
 
         /*
          * Calculate the dpi that will produce the intermediary bitmap's size. Don't go below 5 dpi.
          */
-        $renderingDpi = ceil(self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX / $longestMediaBoxSidePt);
+        $renderingDpi = ceil(self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX / $longestMediaBoxSideInches);
         if ($renderingDpi < 5) {
             $renderingDpi = 5;
         }
@@ -217,23 +238,13 @@ class PdfPreviewGenerator
         /*
          * Calculate the relative dimensions width and height in pixels
          */
-        $widthPx = $heightPx = null;
-        $width = (float) $options['relativeDimensionsWidth'];
-        $height = (float) $options['relativeDimensionsHeight'];
-        if ($width && $height) {
-            $widthPx = $this->measurementConverter->getConversion(
-                $width,
-                $options['relativeDimensionsUnit'],
-                $options['relativeDimensionsResolutionUnit']
-            ) * $options['relativeDimensionsResolutionHorizontal'];
-            $heightPx = $this->measurementConverter->getConversion(
-                $height,
-                $options['relativeDimensionsUnit'],
-                $options['relativeDimensionsResolutionUnit']
-            ) * $options['relativeDimensionsResolutionVertical'];
+        $relativeDimensionsWidthPx = $relativeDimensionsHeightPx = null;
+        if ($relativeDimensionsWidth && $relativeDimensionsHeight) {
+            $relativeDimensionsWidthPx = $relativeDimensionsWidthInches * $renderingDpi;
+            $relativeDimensionsHeightPx = $relativeDimensionsHeightInches * $renderingDpi;
         }
-        $options['relativeDimensionsHeightPx'] = $heightPx;
-        $options['relativeDimensionsWidthPx'] = $widthPx;
+        $options['relativeDimensionsHeightPx'] = $relativeDimensionsHeightPx;
+        $options['relativeDimensionsWidthPx'] = $relativeDimensionsWidthPx;
 
         /*
          * Preview
