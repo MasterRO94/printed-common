@@ -8,15 +8,17 @@ use Symfony\Component\Process\Process;
 
 class CpdfPdfSplitter
 {
-    /** @var string */
-    private $vendorBinDir;
+    /** @var CpdfBinaryConfiguration */
+    private $binaryConfig;
 
     /**
-     * @param string $vendorBinDir
+     * @param string $binaryPath Full path to the cpdf binary.
+     *
+     * @throws Exception\CpdfException
      */
-    public function __construct($vendorBinDir)
+    public function __construct($binaryPath)
     {
-        $this->vendorBinDir = $vendorBinDir;
+        $this->binaryConfig = CpdfBinaryConfiguration::create($binaryPath);
     }
 
     /**
@@ -28,7 +30,7 @@ class CpdfPdfSplitter
     public function split(File $pdfFile, array $options = [])
     {
         $options = array_merge([
-            'preventPreserveObjectStreams' => false,
+            'preventPreserveObjectStreams' => true,
         ], $options);
 
         if ($pdfFile->guessExtension() !== 'pdf') {
@@ -58,14 +60,16 @@ class CpdfPdfSplitter
          * -remove-bookmarks fixes an issue caused by corrupt bookmarks.
          * @see https://github.com/johnwhitington/cpdf-source/issues/123
          */
-        $command = sprintf(
-            './cpdf -remove-bookmarks -i %1$s AND %2$s -split -o %3$s',
-            $inputPathname,
-            implode(' ', $extraArguments),
-            $outputPathname
-        );
+        $command = implode(' ', [
+            sprintf('exec ./%s -remove-bookmarks -i %s', $this->binaryConfig->getFilename(), $inputPathname),
+            sprintf(
+                'AND %s -split -o %s',
+                implode(' ', $extraArguments),
+                $outputPathname
+            ),
+        ]);
 
-        $cpdfProcess = new Process($command, $this->vendorBinDir);
+        $cpdfProcess = new Process($command, $this->binaryConfig->getPath());
         $cpdfProcess->mustRun();
 
         if ($cpdfProcess->getErrorOutput()) {

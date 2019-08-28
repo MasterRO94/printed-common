@@ -22,7 +22,8 @@ class PdfPreviewGeneratorTest extends TestCase
             'convert'
         );
 
-        $cpdfInformationExtractor = new CpdfPdfInformationExtractor(TestUtils::getProjectDir());
+        $cpdfInformationExtractor = new CpdfPdfInformationExtractor(TestUtils::getPathToCpdfBinary());
+
         $measurementConverter = new MeasurementConverter();
 
         $this->pdfPreviewGenerator = new PdfPreviewGenerator(

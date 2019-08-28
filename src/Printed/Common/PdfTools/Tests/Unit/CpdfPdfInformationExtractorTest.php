@@ -19,7 +19,7 @@ class CpdfPdfInformationExtractorTest extends TestCase
     public function setUp()
     {
         $this->projectDir = TestUtils::getProjectDir();
-        $this->cpdfInformationExtractor = new CpdfPdfInformationExtractor($this->projectDir);
+        $this->cpdfInformationExtractor = new CpdfPdfInformationExtractor(TestUtils::getPathToCpdfBinary());
     }
 
     public function produceTestCasesForReadPdfInformation()

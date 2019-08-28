@@ -20,14 +20,22 @@ use Symfony\Component\Process\Process;
  */
 class CpdfPdfInformationExtractor
 {
-    /** @var string */
-    private $projectDir;
+    /** @var CpdfBinaryConfiguration */
+    private $binaryConfig;
 
     /** @var array */
     private $options;
 
-    public function __construct($projectDir, array $options = [])
+    /**
+     * @param string $binaryPath
+     * @param array $options
+     *
+     * @throws Exception\CpdfException
+     */
+    public function __construct($binaryPath, array $options = [])
     {
+        $this->binaryConfig = CpdfBinaryConfiguration::create($binaryPath);
+
         $options = array_merge([
             /*
              * Useful to override if you have a Rectangle class in your own codebase and you want to use it instead of this
@@ -40,7 +48,6 @@ class CpdfPdfInformationExtractor
             },
         ], $options);
 
-        $this->projectDir = $projectDir;
         $this->options = $options;
     }
 
@@ -62,8 +69,12 @@ class CpdfPdfInformationExtractor
         ], $options);
 
         $cpdfProcess = new Process(
-            sprintf('exec vendor/bin/cpdf -info -i %s', escapeshellarg($file->getPathname())),
-            $this->projectDir,
+            sprintf(
+                'exec ./%s -info -i %s',
+                $this->binaryConfig->getFilename(),
+                escapeshellarg($file->getPathname())
+            ),
+            $this->binaryConfig->getPath(),
             null,
             null,
             $options['pdfOpenTimeoutSeconds']
@@ -95,11 +106,11 @@ class CpdfPdfInformationExtractor
         }
 
         /*
-         * Gather pdf file information. Note that due to the fact that pdfs can fail in unlimited number of ways, not
+         * Gather pdf file information. Note that due to the fact that PDFs can fail in unlimited number of ways, not
          * all the information is available all the time.
          *
          * Also, note that the cpdf process might have failed, but it's important to check the std output first, since
-         * e.g. encrypted pdfs are identified by cpdf as broken (exit code 2). In other words, std output takes precedence
+         * e.g. encrypted PDFs are identified by cpdf as broken (exit code 2). In other words, std output takes precedence
          * over std error output (and the process exit code)
          */
 
@@ -250,15 +261,16 @@ class CpdfPdfInformationExtractor
     {
         /*
          * Fyi: In the cpdf command, do not use the "AND" operator when you don't need it. Apparently it makes cpdf
-         * split the pdf in memory, which in turn causes some subtly incorrect pdfs to fail.
+         * split the pdf in memory, which in turn causes some subtly incorrect PDFs to fail.
          */
         $cpdfProcess = new Process(
             sprintf(
-                'exec vendor/bin/cpdf -i %1$s %2$s-%2$s -page-info',
+                'exec ./%1$s -i %2$s %3$s-%3$s -page-info',
+                $this->binaryConfig->getFilename(),
                 escapeshellarg($pdfFile->getPathname()),
                 $pageNumber
             ),
-            $this->projectDir
+            $this->binaryConfig->getPath()
         );
 
         /*

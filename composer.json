@@ -2,7 +2,6 @@
   "name": "printed/common",
   "description": "A library of common utilities",
   "type": "library",
-  "minimum-stability": "stable",
   "authors": [
     {
       "name": "Printed Developers",
@@ -31,11 +30,16 @@
     "symfony/http-foundation": "^2.8 || ^3.0 || ^4.0",
     "symfony/translation": "^2.8 || ^3.0 || ^4.0",
     "symfony/validator": "^2.8 || ^3.0 || ^4.0",
+    "symfony/filesystem": "^2.8 || ^3.0 || ^4.0",
 
     "printed/cpdf-binary": "^2.2.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^7",
     "printed/common-test-files": "dev-master"
+  },
+
+  "replace": {
+    "symfony/polyfill-mbstring": "*"
   }
 }

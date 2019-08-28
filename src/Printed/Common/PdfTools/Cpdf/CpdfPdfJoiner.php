@@ -7,15 +7,17 @@ use Symfony\Component\Process\Process;
 
 class CpdfPdfJoiner
 {
-    /** @var string */
-    private $vendorBinDir;
+    /** @var CpdfBinaryConfiguration */
+    private $binaryConfig;
 
     /**
-     * @param string $vendorBinDir
+     * @param $binaryPath
+     *
+     * @throws Exception\CpdfException
      */
-    public function __construct($vendorBinDir)
+    public function __construct($binaryPath)
     {
-        $this->vendorBinDir = $vendorBinDir;
+        $this->binaryConfig = CpdfBinaryConfiguration::create($binaryPath);
     }
 
     /**
@@ -34,12 +36,13 @@ class CpdfPdfJoiner
         }
 
         $command = sprintf(
-            './cpdf -i %s -o %s',
+            'exec ./%s -i %s -o %s',
+            $this->binaryConfig->getFilename(),
             implode(' -i ', $inputFiles),
             $outputFile->getPathname()
         );
 
-        $cpdfProcess = new Process($command, $this->vendorBinDir);
+        $cpdfProcess = new Process($command, $this->binaryConfig->getPath());
         $cpdfProcess->mustRun();
 
         if ($cpdfProcess->getErrorOutput()) {

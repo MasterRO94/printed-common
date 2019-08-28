@@ -2,3 +2,5 @@
 
 /composer.lock
 /vendor
+
+/src/Printed/Common/PdfTools/Tests/Unit/fixtures/*.png
