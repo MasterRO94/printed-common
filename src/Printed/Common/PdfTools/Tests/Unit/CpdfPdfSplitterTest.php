@@ -5,8 +5,8 @@ namespace Printed\Common\PdfTools\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use Printed\Common\PdfTools\Cpdf\CpdfPdfInformationExtractor;
 use Printed\Common\PdfTools\Cpdf\CpdfPdfSplitter;
-use Printed\Common\PdfTools\Cpdf\ValueObject\PdfInformation;
 use Printed\Common\PdfTools\Tests\TestUtils;
+use Symfony\Component\Filesystem\Filesystem;
 
 class CpdfPdfSplitterTest extends TestCase
 {
@@ -24,6 +24,7 @@ class CpdfPdfSplitterTest extends TestCase
         $this->projectDir = TestUtils::getProjectDir();
         $this->cpdfInformationExtractor = new CpdfPdfInformationExtractor(TestUtils::getPathToCpdfBinary());
         $this->cpdfPdfSplitter = new CpdfPdfSplitter(
+            new Filesystem(),
             $this->cpdfInformationExtractor,
             TestUtils::getPathToCpdfBinary()
         );
