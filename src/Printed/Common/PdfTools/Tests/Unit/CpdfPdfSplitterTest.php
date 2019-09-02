@@ -33,6 +33,28 @@ class CpdfPdfSplitterTest extends TestCase
     /**
      * @test
      */
+    public function splitPdf_prwe1742Case_noRegression()
+    {
+        $pdfPagesFiles = $this->cpdfPdfSplitter->split(TestUtils::getPrintedCommonTestFile('PRWE-1742-regression-test.pdf'));
+
+        try {
+            $this->assertCount(2, $pdfPagesFiles);
+
+            foreach ($pdfPagesFiles as $file) {
+                $cpdfInfo = $this->cpdfInformationExtractor->readPdfInformation($file);
+
+                $this->assertFalse($cpdfInfo->couldNotOpenDueToBrokenFile(), 'Extracted pdf page opens with errors.');
+            }
+        } finally {
+            foreach ($pdfPagesFiles as $file) {
+                @unlink($file->getPathname());
+            }
+        }
+    }
+
+    /**
+     * @test
+     */
     public function split_maxPageCount_limitsExtractedPages()
     {
         $testFile = TestUtils::getPrintedCommonTestFile('72PageNormalFile.pdf');
