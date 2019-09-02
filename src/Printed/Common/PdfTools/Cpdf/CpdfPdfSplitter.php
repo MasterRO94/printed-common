@@ -116,7 +116,7 @@ class CpdfPdfSplitter
                 $pageCountToExtract
             ),
             sprintf(
-                'AND %s -split -o %s',
+                'AND %s -no-preserve-objstm -split -o %s',
                 implode(' ', $extraArguments),
                 $outputPathname
             ),
