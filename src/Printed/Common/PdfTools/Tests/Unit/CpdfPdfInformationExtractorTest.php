@@ -6,7 +6,6 @@ use PHPUnit\Framework\TestCase;
 use Printed\Common\PdfTools\Cpdf\CpdfPdfInformationExtractor;
 use Printed\Common\PdfTools\Cpdf\ValueObject\PdfInformation;
 use Printed\Common\PdfTools\Tests\TestUtils;
-use Symfony\Component\HttpFoundation\File\File;
 
 class CpdfPdfInformationExtractorTest extends TestCase
 {
@@ -74,7 +73,7 @@ class CpdfPdfInformationExtractorTest extends TestCase
         $testFileName,
         callable $resultAssertionsFn
     ) {
-        $testFile = $this->getTestFile($testFileName);
+        $testFile = TestUtils::getPrintedCommonTestFile($testFileName);
 
         $pdfInformation = $this->cpdfInformationExtractor->readPdfInformation($testFile);
 
@@ -86,7 +85,7 @@ class CpdfPdfInformationExtractorTest extends TestCase
      */
     public function readPdfInformation_shellUnsafePdfName_doesNotCrash()
     {
-        $testFile = $this->getTestFile('Shell Unsafe Name $(echo $(env)).pdf');
+        $testFile = TestUtils::getPrintedCommonTestFile('Shell Unsafe Name $(echo $(env)).pdf');
 
         $this->cpdfInformationExtractor->readPdfInformation($testFile);
 
@@ -98,7 +97,7 @@ class CpdfPdfInformationExtractorTest extends TestCase
      */
     public function readPdfBoxesInformationOfPageInFile_nonZeroMediaBox_trimBoxAligned()
     {
-        $testFile = $this->getTestFile('MediaBoxNonZeroBleed3mm.pdf');
+        $testFile = TestUtils::getPrintedCommonTestFile('MediaBoxNonZeroBleed3mm.pdf');
 
         $pdfBoxesInformation = $this->cpdfInformationExtractor->readPdfBoxesInformationOfPageInFile($testFile, 1);
 
@@ -106,17 +105,5 @@ class CpdfPdfInformationExtractorTest extends TestCase
 
         $this->assertEquals($threeMmInPt, $pdfBoxesInformation->getTrimBox()->getX(), '', 1);
         $this->assertEquals($threeMmInPt, $pdfBoxesInformation->getTrimBox()->getY(), '', 1);
-    }
-
-    /**
-     * @param string $testFileName
-     * @return File
-     */
-    private function getTestFile($testFileName)
-    {
-        /*
-         * I'm not amazed with the hardcoded composer vendor subdir here. But you know, it worked at the time.
-         */
-        return new File("{$this->projectDir}/vendor/printed/common-test-files/pdf/{$testFileName}");
     }
 }
