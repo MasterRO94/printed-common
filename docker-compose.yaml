@@ -1,13 +1,13 @@
 version: '2'
 
 services:
-  7.1-cli-alpine:
+  alpine:
     build: 'docker/7.1-cli-alpine'
     volumes:
       - '.:/mnt'
     working_dir: '/mnt'
 
-  7.1-cli-debian:
+  debian:
     build: 'docker/7.1-cli-debian'
     volumes:
       - '.:/mnt'
