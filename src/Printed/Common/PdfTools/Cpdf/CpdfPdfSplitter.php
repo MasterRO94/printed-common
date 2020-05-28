@@ -48,6 +48,10 @@ class CpdfPdfSplitter
     public function split(File $pdfFile, array $options = [])
     {
         $options = array_merge([
+            /**
+             * @var int|null Null means "Symfony default" (i.e. not unlimitted).
+             */
+            'timeoutSeconds' => null,
             /*
              * @deprecated This option now is always on due to cpdf "-remove-bookmarks" op's creating broken files without
              *  it. The cases that are fixed by having this option always on are unit tested, so feel free to disable this
@@ -92,6 +96,8 @@ class CpdfPdfSplitter
             $pageCountToExtract = $options['maxPageCount'];
         }
 
+        $remainingTimeoutSeconds = $options['timeoutSeconds'];
+
         /*
          * PDF splitting is done in 2 steps:
          *
@@ -106,7 +112,10 @@ class CpdfPdfSplitter
          * -remove-bookmarks fixes an issue caused by corrupt bookmarks.
          * @see https://github.com/johnwhitington/cpdf-source/issues/123
          */
-        $intermediaryTemporaryFile = $this->removePdfBookmarks($pdfFile);
+        list(
+            $intermediaryTemporaryFile,
+            $remainingTimeoutSeconds
+        ) = $this->removePdfBookmarks($pdfFile, $remainingTimeoutSeconds);
 
         $command = implode(' ', [
             sprintf(
@@ -122,7 +131,13 @@ class CpdfPdfSplitter
             ),
         ]);
 
-        $cpdfProcess = new Process($command, $this->binaryConfig->getPath());
+        $cpdfProcess = new Process(
+            $command,
+            $this->binaryConfig->getPath(),
+            null,
+            null,
+            $remainingTimeoutSeconds === null ? 60 : $remainingTimeoutSeconds
+        );
         $cpdfProcess->mustRun();
 
         if ($cpdfProcess->getErrorOutput()) {
@@ -145,9 +160,13 @@ class CpdfPdfSplitter
 
     /**
      * @param File $pdfFile
-     * @return TemporaryFile
+     * @param int|null $remainingTimeoutSeconds
+     * @return array Tuple: [
+     *  $intermediaryTemporaryFile: TemporaryFile,
+     *  $remainingTimeoutSeconds: ?int,
+     * ]
      */
-    private function removePdfBookmarks(File $pdfFile)
+    private function removePdfBookmarks(File $pdfFile, $remainingTimeoutSeconds)
     {
         /*
          * Future improvement: Better way would be to use a factory for temporary files but there wasn't available at the
@@ -164,9 +183,22 @@ class CpdfPdfSplitter
             $intermediaryTemporaryFile->getPathname()
         );
 
-        $removePdfBookmarksProcess = new Process($cliCommand, $this->binaryConfig->getPath());
+        $cliCommandTimeStart = time();
+
+        $removePdfBookmarksProcess = new Process(
+            $cliCommand,
+            $this->binaryConfig->getPath(),
+            null,
+            null,
+            $remainingTimeoutSeconds === null ? 60 : $remainingTimeoutSeconds
+        );
         $removePdfBookmarksProcess->mustRun();
 
-        return $intermediaryTemporaryFile;
+        return [
+            $intermediaryTemporaryFile,
+            $remainingTimeoutSeconds === null
+                ? null
+                : $remainingTimeoutSeconds - (time() - $cliCommandTimeStart),
+        ];
     }
 }
