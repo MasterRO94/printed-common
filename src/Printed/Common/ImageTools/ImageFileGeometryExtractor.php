@@ -2,10 +2,14 @@
 
 namespace Printed\Common\ImageTools;
 
+use Printed\Common\ImageTools\Enum\ImageMagickImageOrientation;
 use Printed\Common\ImageTools\ValueObject\ImageFileGeometry;
 use Printed\Common\PdfTools\Utils\Geometry\PlaneGeometry\Rectangle;
 use Printed\Common\PdfTools\Utils\MeasurementConverter;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -14,7 +18,9 @@ use Symfony\Component\Process\Process;
  * Q: Why a whole class for such a petty task that I can do by at least 3 other different ways myself?
  * A: php's \Imagick and "identify" spend ridiculous amount of time while reading this information. The bigger the file
  *    the longer it takes. This class uses some tricks to query just the dimensions and nothing else, which has proven
- *    to work.
+ *    to work. UPDATE: note that jpegs now require that orientation is read. Unlike querying image dimensions, this may
+ *    take time, however it is still restricted time-wise so it's still somewhat safe to assume that reading the dimensions
+ *    won't time-out your http request.
  */
 class ImageFileGeometryExtractor
 {
@@ -24,6 +30,9 @@ class ImageFileGeometryExtractor
 
     /** @var MeasurementConverter */
     private $measurementConverter;
+
+    /** @var LoggerInterface */
+    private $logger;
 
     /** @var array */
     private $options;
@@ -52,7 +61,13 @@ class ImageFileGeometryExtractor
         ], $options);
 
         $this->measurementConverter = $measurementConverter;
+        $this->logger = new NullLogger();
         $this->options = $options;
+    }
+
+    public function setLogger(LoggerInterface $logger)
+    {
+        $this->logger = $logger;
     }
 
     /**
@@ -120,6 +135,24 @@ class ImageFileGeometryExtractor
             throw new \RuntimeException("Imagemagick identify command produced unexpected output: {$identifyProcess->getOutput()}");
         }
 
+        /*
+         * Case when jpeg: run the identify again to read the orientation. This has to be done separately because to read
+         * the orientation, I have to use the "long form attribute" instead of the "short" one, which doesn't result
+         * in instantaneous execution. The bottom line is that this cli command can timeout on large/complex jpegs.
+         *
+         * Note that the use case here is to deal with photos taken on mobile phones that are arguably the 100% of cases
+         * when jpegs use the orientation feature. For this reason, when a cli timeout is hit for large/complex jpegs
+         * (that would not have been created on mobile phones), the orientation is assumed to be "un-rotated". If a
+         * professional creates a 200MB jpeg file in photoshop that uses the orientation feature, they really get what
+         * they ask for, for attempting to be clever.
+         *
+         * The cli timeout value is also very small due to the assumption that the jpegs aren't large/complex.
+         */
+        $imageOrientation = ImageMagickImageOrientation::UNDEFINED;
+        if ('jpeg' === $file->guessExtension()) {
+            $imageOrientation = $this->getImageFileOrientation($file, $options);
+        }
+
         $widthPx = (int) trim($processOutputParts[0]);
         $heightPx = (int) trim($processOutputParts[1]);
 
@@ -134,6 +167,14 @@ class ImageFileGeometryExtractor
          * @var string One of the following: Undefined, PixelsPerInch, PixelsPerCentimeter
          */
         $resolutionUnit = trim($processOutputParts[4]) ?: self::IMAGEMAGICK_UNIT_UNDEFINED;
+
+        /*
+         * Case when the image orientation is sideways: swap the width and height values.
+         */
+        if (ImageMagickImageOrientation::isOrientationSideWays($imageOrientation)) {
+            list($widthPx, $heightPx) = [$heightPx, $widthPx];
+            list($resolutionHorizontal, $resolutionVertical) = [$resolutionVertical, $resolutionHorizontal];
+        }
 
         /*
          * Calculate the physical size.
@@ -158,6 +199,60 @@ class ImageFileGeometryExtractor
             $this->options['rectangleFactoryFn'](0, 0, $widthPx, $heightPx),
             $widthMm === null ? null : $this->options['rectangleFactoryFn'](0, 0, $widthMm, $heightMm)
         );
+    }
+
+    /**
+     * @param File $file
+     * @param array $options Same as for ::getImageFileGeometry()
+     * @return string One of ImageMagickImageOrientation::*
+     */
+    private function getImageFileOrientation(File $file, array $options)
+    {
+        $processCommand = 'exec ' . $this->options['imageMagickIdentifyCommand'] . ' -format "%[orientation]\n" ' . escapeshellarg($file->getPathname());
+
+        if ($options['forcefullyReadTheFirstFrameOnly']) {
+            $processCommand .= '[0]';
+        }
+
+        $identifyProcess = new Process(
+            $processCommand,
+            null,
+            null,
+            null,
+            5
+        );
+
+        try {
+            $identifyProcess->mustRun();
+        } catch (ProcessTimedOutException $exception) {
+            $this->logger->error(sprintf(
+                "Could not read image file's orientation using imagemagick due to cli timeout. Assuming the orientation is undefined and moving on. File: `%s`, file size: `%s`, actual exception message: `%s`",
+                $file->getPathname(),
+                number_format($file->getSize()),
+                $exception->getMessage()
+            ));
+
+            return ImageMagickImageOrientation::UNDEFINED;
+        }
+
+        $processOutputParts = explode(PHP_EOL, $identifyProcess->getOutput());
+
+        if (
+            /*
+             * DANGER: I need this function to crash on multi-page/layer/frame files due to not being easily able to determine
+             * in pdcv1 whether pdc-convert produces 1 or many files, when converting this file. This was considered a
+             * temporary fix at the point of writing this so I didn't want to spend more time investigating it. If it
+             * causes problems at the time you're reading this, please make sure pdcv1 usage handles multi-page/layer raster
+             * files correctly (at the time of writing this, it wasn't crashing and was carrying on assuming that the preview
+             * was empty (implementation detail, don't ask))
+             */
+//            $options['forcefullyReadTheFirstFrameOnly']
+            2 !== count($processOutputParts)
+        ) {
+            throw new \RuntimeException("Imagemagick identify command for retrieving image orientation value produced unexpected output: {$identifyProcess->getOutput()}");
+        }
+
+        return trim($processOutputParts[0]) ?: ImageMagickImageOrientation::UNDEFINED;
     }
 
     /**
