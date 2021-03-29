@@ -18,7 +18,7 @@ class TemporaryFileFactory implements TemporaryFileFactoryInterface
      */
     public function __construct(
         Filesystem $filesystem,
-        string $temporaryDirPath
+        $temporaryDirPath
     ) {
         $this->filesystem = $filesystem;
         $this->temporaryDirPath = $temporaryDirPath;
@@ -27,7 +27,7 @@ class TemporaryFileFactory implements TemporaryFileFactoryInterface
     /**
      * {@inheritDoc}
      */
-    public function createTemporaryFile(string $tempFilePath = null): TemporaryFile
+    public function createTemporaryFile($tempFilePath = null)
     {
         return new TemporaryFile(
             $this->filesystem,

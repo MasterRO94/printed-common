@@ -4,5 +4,9 @@ namespace Printed\Common\Filesystem;
 
 interface TemporaryFileFactoryInterface
 {
-    public function createTemporaryFile(string $tempFilePath = null): TemporaryFile;
+    /**
+     * @param string|null $tempFilePath
+     * @return TemporaryFile
+     */
+    public function createTemporaryFile($tempFilePath = null);
 }
