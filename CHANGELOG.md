@@ -8,7 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - [RectangularShape] Fix an incomplete nullable typehint.
 
-
 ## [0.2.5] - 2021-03-29
 ### Added
 - [CpdfPdfSplitter] Add `chunks` method.
