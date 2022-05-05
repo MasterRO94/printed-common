@@ -58,6 +58,29 @@ class PdfPreviewGeneratorTest extends TestCase
     /**
      * @test
      */
+    public function generatesAFirstPagePreviewWithTransparency()
+    {
+        $file = new File(__DIR__ . '/fixtures/48ec3913-d1d9-4964-b73d-071366173406.pdf');
+        $outputFile = new File(__DIR__ . '/fixtures/48ec3913-d1d9-4964-b73d-071366173406-transparency.png', false);
+
+        $this->pdfPreviewGenerator->generateFirstPagePreview(
+            $file,
+            $outputFile,
+            [
+                'previewSizePx' => 600,
+                'timeout' => 5,
+                'withTransparency' => true,
+            ]
+        );
+
+//        unlink($outputFile->getPathname());
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    /**
+     * @test
+     */
     public function generatesPreviewsForAllPages()
     {
         $file = new File(__DIR__ . '/fixtures/48ec3913-d1d9-4964-b73d-071366173406.pdf');

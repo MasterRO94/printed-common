@@ -60,6 +60,16 @@ class TemporaryFile extends File
     }
 
     /**
+     * Solves file state cache problems when you fwrite to the temp file and then e.g. attempt to read its size.
+     *
+     * In short, call this when you finish working with the filePointer to avoid being pwned by fstat cache.
+     */
+    public function clearFileStatCache()
+    {
+        clearstatcache(true, $this->getPathname());
+    }
+
+    /**
      * @return string Full path to the file on the filesystem
      */
     public function getFullPath()
@@ -81,6 +91,8 @@ class TemporaryFile extends File
     public function writeContent($content)
     {
         fwrite($this->getFilePointer(), $content);
+
+        $this->clearFileStatCache();
     }
 
     /**

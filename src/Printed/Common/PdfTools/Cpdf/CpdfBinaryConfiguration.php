@@ -32,8 +32,8 @@ class CpdfBinaryConfiguration
      */
     public static function create($binaryPath)
     {
-        if (!file_exists($binaryPath)) {
-            throw new CpdfException(sprintf('CPDF binary path not found (path: %s).', $binaryPath));
+        if (!is_file($binaryPath)) {
+            throw new CpdfException(sprintf("CPDF binary path not found or isn't a file (path: %s).", $binaryPath));
         }
 
         if (!is_executable($binaryPath)) {

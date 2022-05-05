@@ -113,7 +113,7 @@ class RectangularShape
      * 
      * @param int $x
      * @param int $y
-     * @param int $units
+     * @param int|null $units
      * @param string $orientation One of Enums\Orientation:: consts
      * @return RectangularShape
      */

@@ -167,6 +167,11 @@ class PdfPreviewGenerator
              * pages' geometry back despite the warnings.
              */
             'attemptPreviewingDespitePdfWarnings' => true,
+
+            /*
+             * Whether to render pngs with white background or transparent background
+             */
+            'withTransparency' => false,
         ], $options);
 
         if (self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX < $options['previewSizePx']) {
@@ -336,6 +341,11 @@ class PdfPreviewGenerator
              */
             'attemptPreviewingDespitePdfWarnings' => true,
 
+            /*
+             * See the option for ::generatePreviewForPage()
+             */
+            'withTransparency' => false,
+
             /**
              * @var PdfInformation|null If you have an instance of pdf information for the supplied file already, you
              *  can optimise this function by providing it as an option. Note that providing pdf information not for the
@@ -420,6 +430,7 @@ class PdfPreviewGenerator
                 'returnPreviewsWithPagePdfBoxesInformation' => $options['returnPreviewsWithPagePdfBoxesInformation'],
                 'crashOnPreviewingErrors' => $options['crashOnPreviewingErrors'],
                 'attemptPreviewingDespitePdfWarnings' => $options['attemptPreviewingDespitePdfWarnings'],
+                'withTransparency' => $options['withTransparency'],
                 'timeout' => $previewingTimeout,
             ]);
 
@@ -443,7 +454,8 @@ class PdfPreviewGenerator
             $pdfFile,
             $pageNumber,
             $renderingDpi,
-            $outputFile
+            $outputFile,
+            $options
         );
 
         $downScaleProcess = $this->buildProcessForDownscalePreview(
@@ -467,18 +479,20 @@ class PdfPreviewGenerator
      * @param int $pageNumber
      * @param int $renderingDpi
      * @param File $outputFile
+     * @param array $options Same as for ::generatePagePreviews()
      * @return Process
      */
-    private function buildProcessForHighResPreview(File $inputFile, $pageNumber, $renderingDpi, File $outputFile)
+    private function buildProcessForHighResPreview(File $inputFile, $pageNumber, $renderingDpi, File $outputFile, array $options = [])
     {
         return new Process(sprintf(
             implode(' ', [
-                'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m',
-                '-dFirstPage=%2$d -dLastPage=%3$d',
+                'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=%2$d',
+                '-dFirstPage=%3$d -dLastPage=%4$d',
                 '-dTextAlphaBits=2 -dGraphicsAlphaBits=2',
-                '-r%4$d -sOutputFile=%5$s %6$s'
+                '-r%5$d -sOutputFile=%6$s %7$s'
             ]),
             $this->pathToGhostscript,
+            $options['withTransparency'] ? 'pngalpha' : 'png16m',
             $pageNumber,
             $pageNumber,
             $renderingDpi,
