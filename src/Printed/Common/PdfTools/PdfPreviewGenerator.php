@@ -485,12 +485,7 @@ class PdfPreviewGenerator
     private function buildProcessForHighResPreview(File $inputFile, $pageNumber, $renderingDpi, File $outputFile, array $options = [])
     {
         return new Process(sprintf(
-            implode(' ', [
-                'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=%2$s',
-                '-dFirstPage=%3$d -dLastPage=%4$d',
-                '-dTextAlphaBits=2 -dGraphicsAlphaBits=2',
-                '-r%5$d -sOutputFile=%6$s %7$s'
-            ]),
+            'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=%2$s -dFirstPage=%3$d -dLastPage=%4$d -dTextAlphaBits=2 -dGraphicsAlphaBits=2 -r%5$d -sOutputFile=%6$s %7$s',
             $this->pathToGhostscript,
             $options['withTransparency'] ? 'pngalpha' : 'png16m',
             $pageNumber,
@@ -507,6 +502,8 @@ class PdfPreviewGenerator
      * @param File $inputFile
      * @param int $previewSizePx
      * @param File $outputFile
+     * @param float|null $relativeDimensionsWidthPx
+     * @param float|null $relativeDimensionsHeightPx
      * @return Process
      */
     private function buildProcessForDownscalePreview(
