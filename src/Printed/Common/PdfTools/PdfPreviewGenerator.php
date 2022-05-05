@@ -486,7 +486,7 @@ class PdfPreviewGenerator
     {
         return new Process(sprintf(
             implode(' ', [
-                'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=%2$d',
+                'exec %1$s -dSAFER -dBATCH -dNOPAUSE -sDEVICE=%2$s',
                 '-dFirstPage=%3$d -dLastPage=%4$d',
                 '-dTextAlphaBits=2 -dGraphicsAlphaBits=2',
                 '-r%5$d -sOutputFile=%6$s %7$s'
