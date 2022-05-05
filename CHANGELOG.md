@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2022-05-05
+### Added
+- [PdfPreviewGenerator] Add `relativeDimensionsWidth`, `relativeDimensionsHeight`,
+  and `relativeDimensionsUnit` options to `generatePreviewForPage` method.
+  When these options are provided it will generate a preview for a bounding box
+  of the given dimensions. The artwork in the PDF file will be centred and,
+  if smaller, padded with background colour, if larger, cropped.
+- `buildProcessForDownscalePreview` method now takes the optional parameters
+  `relativeDimensionsWidthPx` and `relativeDimensionsHeightPx` - this is required
+  for the new options in `generatePreviewForPage` (mentioned above) to work.
+
 ## [0.2.6] - 2021-06-07
 ### Fixed
 - [RectangularShape] Fix an incomplete nullable typehint.

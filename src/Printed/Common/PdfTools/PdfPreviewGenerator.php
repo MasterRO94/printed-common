@@ -137,6 +137,15 @@ class PdfPreviewGenerator
             'timeout' => 60,
 
             /*
+             * Generates preview for a bounding box of the given dimensions, if provided.
+             * The artwork in the PDF file will be centred and, if smaller, padded with
+             * background colour, if larger, cropped.
+             */
+            'relativeDimensionsWidth' => null,
+            'relativeDimensionsHeight' => null,
+            'relativeDimensionsUnit' => MeasurementConverter::UNIT_MM,
+
+            /*
              * To get page information as well as the preview in one go. Note that the page information is retrieved
              * from the file regardless of what this option says, as the information is needed for previewing.
              */
@@ -189,19 +198,58 @@ class PdfPreviewGenerator
                 : null;
         }
 
-        $longestMediaBoxSidePt = $this->measurementConverter->getConversion(
+        /*
+         * Calculate rendering DPI based on the PDF artwork and - if provided -
+         * the relative dimensions as well
+         */
+        $longestRelativeDimensionsSideInches = 0.0;
+        $relativeDimensionsWidth = (float) $options['relativeDimensionsWidth'];
+        $relativeDimensionsHeight = (float) $options['relativeDimensionsHeight'];
+        if ($relativeDimensionsWidth && $relativeDimensionsHeight) {
+            $relativeDimensionsWidthInches = $this->measurementConverter->getConversion(
+                $relativeDimensionsWidth,
+                $options['relativeDimensionsUnit'],
+                MeasurementConverter::UNIT_IN
+            );
+            $relativeDimensionsHeightInches = $this->measurementConverter->getConversion(
+                $relativeDimensionsHeight,
+                $options['relativeDimensionsUnit'],
+                MeasurementConverter::UNIT_IN
+            );
+            $longestRelativeDimensionsSideInches =
+                $relativeDimensionsWidthInches > $relativeDimensionsHeightInches
+                    ? $relativeDimensionsWidthInches
+                    : $relativeDimensionsHeightInches
+            ;
+        }
+
+        $longestMediaBoxSideInches = $this->measurementConverter->getConversion(
             $pdfBoxesInformation->getMediaBox()->getLongestSide(),
             MeasurementConverter::UNIT_PT,
             MeasurementConverter::UNIT_IN
         );
+        if ($longestRelativeDimensionsSideInches > $longestMediaBoxSideInches) {
+            $longestMediaBoxSideInches = $longestRelativeDimensionsSideInches;
+        }
 
         /*
          * Calculate the dpi that will produce the intermediary bitmap's size. Don't go below 5 dpi.
          */
-        $renderingDpi = ceil(self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX / $longestMediaBoxSidePt);
+        $renderingDpi = ceil(self::RENDERING_INTERMEDIARY_BITMAP_SIZE_PX / $longestMediaBoxSideInches);
         if ($renderingDpi < 5) {
             $renderingDpi = 5;
         }
+
+        /*
+         * Calculate the relative dimensions width and height in pixels
+         */
+        $relativeDimensionsWidthPx = $relativeDimensionsHeightPx = null;
+        if ($relativeDimensionsWidth && $relativeDimensionsHeight) {
+            $relativeDimensionsWidthPx = $relativeDimensionsWidthInches * $renderingDpi;
+            $relativeDimensionsHeightPx = $relativeDimensionsHeightInches * $renderingDpi;
+        }
+        $options['relativeDimensionsHeightPx'] = $relativeDimensionsHeightPx;
+        $options['relativeDimensionsWidthPx'] = $relativeDimensionsWidthPx;
 
         /*
          * Preview
@@ -209,7 +257,13 @@ class PdfPreviewGenerator
         $previewProcessException = null;
 
         try {
-            $this->createDownscaledPreviewFromPdf($pdfFile, $options, $pageNumber, $renderingDpi, $outputFile);
+            $this->createDownscaledPreviewFromPdf(
+                $pdfFile,
+                $options,
+                $pageNumber,
+                $renderingDpi,
+                $outputFile
+            );
         } catch (\Exception $exception) {
             /*
              * Crashes are handled outside of try-catch.
@@ -407,7 +461,9 @@ class PdfPreviewGenerator
         $downScaleProcess = $this->buildProcessForDownscalePreview(
             $outputFile,
             $options['previewSizePx'],
-            $outputFile
+            $outputFile,
+            $options['relativeDimensionsWidthPx'],
+            $options['relativeDimensionsHeightPx']
         );
 
         SymfonyProcessRunner::runSymfonyProcessesWithTimeout([
@@ -446,16 +502,31 @@ class PdfPreviewGenerator
      * @param File $inputFile
      * @param int $previewSizePx
      * @param File $outputFile
+     * @param float|null $relativeDimensionsWidthPx
+     * @param float|null $relativeDimensionsHeightPx
      * @return Process
      */
-    private function buildProcessForDownscalePreview(File $inputFile, $previewSizePx, File $outputFile)
-    {
+    private function buildProcessForDownscalePreview(
+        File $inputFile,
+        $previewSizePx,
+        File $outputFile,
+        $relativeDimensionsWidthPx = null,
+        $relativeDimensionsHeightPx = null
+    ) {
         return new Process(sprintf(
-            'exec %1$s -resize %2$dx%2$d png:%3$s png:%4$s',
+            implode(' ', array_filter([
+                'exec %1$s',
+                ($relativeDimensionsHeightPx && $relativeDimensionsWidthPx)
+                    ? '-gravity Center -extent %5$dx%6$d+0+0 -crop %5$dx%6$d+0+0'
+                    : null,
+                '-resize %2$dx%2$d png:%3$s png:%4$s',
+            ])),
             $this->pathToConvert,
             $previewSizePx,
             escapeshellarg($inputFile->getPathname()),
-            escapeshellarg($outputFile->getPathname())
+            escapeshellarg($outputFile->getPathname()),
+            $relativeDimensionsWidthPx,
+            $relativeDimensionsHeightPx
         ));
     }
 }
