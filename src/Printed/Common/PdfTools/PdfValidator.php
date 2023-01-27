@@ -4,7 +4,7 @@ namespace Printed\Common\PdfTools;
 
 use Printed\Common\PdfTools\Cpdf\CpdfPdfInformationExtractor;
 use Symfony\Component\HttpFoundation\File\File;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\Validator\ConstraintViolation;
 
 class PdfValidator
